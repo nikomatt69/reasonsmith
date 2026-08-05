@@ -1,20 +1,18 @@
 /**
- * Help dialog — keybindings and audiences in a modal panel.
+ * Help dialog — full enterprise keybindings and audiences.
  */
 
-import { For, Show, createMemo } from "solid-js"
+import { For, createMemo } from "solid-js"
 import { TextAttributes } from "@opentui/core"
 import type { Audience } from "@reasonsmith/core"
 import { useDialog } from "./dialog.tsx"
-import { useKeybind } from "../context/keybind.tsx"
+import { BINDINGS, useKeybind } from "../context/keybind.tsx"
 import { useReport } from "../context/report.tsx"
 import { useTheme } from "../context/theme.tsx"
 import { AUDIENCE_HELP, AUDIENCE_LABELS } from "./audiences.ts"
 import { Button } from "./button.tsx"
 import { Clickable } from "./clickable.tsx"
 import { ModalPanel } from "./modal-panel.tsx"
-
-const SHORTCUT_BINDINGS = ["commands", "move", "open", "back", "audience", "limits", "quit"] as const
 
 export function DialogHelp() {
   const dialog = useDialog()
@@ -23,11 +21,17 @@ export function DialogHelp() {
   const t = useTheme()
 
   const shortcutRows = createMemo(() =>
-    SHORTCUT_BINDINGS.map((action) => {
-      const keys = keybind.printFor(action)
-      const binding = keybind.bindings.find((b) => b.label === action)
-      return { keys, label: binding?.label ?? action }
-    }).filter((row) => row.keys !== ""),
+    BINDINGS.filter((b) => !b.leader).map((binding) => ({
+      keys: binding.keys,
+      label: binding.label,
+    })),
+  )
+
+  const leaderRows = createMemo(() =>
+    BINDINGS.filter((b) => b.leader).map((binding) => ({
+      keys: `ctrl+x ${binding.keys.split(" ")[0] ?? binding.keys}`,
+      label: binding.label,
+    })),
   )
 
   const audienceRows = createMemo(() =>
@@ -39,20 +43,28 @@ export function DialogHelp() {
   )
 
   return (
-    <ModalPanel title="Help" subtitle="shortcuts and audience projections" stackDepth={dialog.stack().length} width={78}>
+    <ModalPanel title="Help" subtitle="enterprise keymap · audiences · command palette (ctrl+p)" stackDepth={dialog.stack().length} width={82}>
       <box flexDirection="row" gap={3} paddingTop={1}>
         <box flexDirection="column" gap={1} flexGrow={1}>
-          <text fg={t.color.info} attributes={t.attr.bold} wrapMode="none" content="Shortcuts" />
+          <text fg={t.color.info} attributes={t.attr.bold} wrapMode="none" content="Global shortcuts" />
           <For each={shortcutRows()}>
             {(row) => (
               <box flexDirection="row" gap={1}>
-                <text fg={t.color.text} attributes={TextAttributes.BOLD} wrapMode="none" width={14} content={row.keys} />
+                <text fg={t.color.text} attributes={TextAttributes.BOLD} wrapMode="none" width={16} content={row.keys} />
                 <text fg={t.color.textMuted} wrapMode="none" content={row.label} />
               </box>
             )}
           </For>
-          <text fg={t.color.info} attributes={t.attr.bold} wrapMode="none" content="Leader (ctrl+x)" />
-          <text fg={t.color.textMuted} wrapMode="none" content="h help · t theme · a audience · l limits · p packs · s systems · q quit" />
+          <text fg={t.color.info} attributes={t.attr.bold} wrapMode="none" content="Leader (ctrl+x, 2s)" />
+          <For each={leaderRows()}>
+            {(row) => (
+              <box flexDirection="row" gap={1}>
+                <text fg={t.color.text} attributes={TextAttributes.BOLD} wrapMode="none" width={16} content={row.keys} />
+                <text fg={t.color.textMuted} wrapMode="none" content={row.label} />
+              </box>
+            )}
+          </For>
+          <text fg={t.color.textMuted} wrapMode="none" content={`@opentui/keymap · ${keybind.formatKey("<leader>")} leader token`} />
         </box>
 
         <box flexDirection="column" gap={1} flexGrow={1}>

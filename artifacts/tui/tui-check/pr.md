@@ -2,10 +2,10 @@
 
 ✅ TUI verification passed.
 
-OpenTUI enterprise dashboard: leader key, palettes, status bar, mouse, keyboard (Kitty), full route navigation — verified via terminal-control.
+Action-driven enterprise demo: @opentui/keymap, 6 palettes, KV/toasts, all routes, command palette, modals, leader key — every frame follows a visible transition.
 
 ![Reasonsmith enterprise TUI verification](https://raw.githubusercontent.com/nikomatt69/reasonsmith/cursor/enterprise-tui-terminal-control/artifacts/tui/tui-check/preview.gif)
 
-https://github.com/nikomatt69/reasonsmith/raw/cursor/enterprise-tui-terminal-control/artifacts/tui/tui-check/demo.mp4
+[Full MP4 recording](https://raw.githubusercontent.com/nikomatt69/reasonsmith/cursor/enterprise-tui-terminal-control/artifacts/tui/tui-check/demo.mp4)
 
-[Full MP4 recording](https://github.com/nikomatt69/reasonsmith/raw/cursor/enterprise-tui-terminal-control/artifacts/tui/tui-check/demo.mp4) · [Raw .termctrl recording](https://github.com/nikomatt69/reasonsmith/raw/cursor/enterprise-tui-terminal-control/artifacts/tui/tui-check/recording.termctrl)
+[Raw .termctrl recording](https://raw.githubusercontent.com/nikomatt69/reasonsmith/cursor/enterprise-tui-terminal-control/artifacts/tui/tui-check/recording.termctrl)

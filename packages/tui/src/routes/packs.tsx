@@ -21,9 +21,11 @@
 
 import { listPacks, loadPack } from "@reasonsmith/core"
 import { useTheme } from "../context/theme.tsx"
+import { useToast } from "../context/toast.tsx"
 
 export function Packs() {
   const t = useTheme()
+  const toast = useToast()
 
   const options = () =>
     listPacks().map((packId) => {
@@ -67,12 +69,9 @@ export function Packs() {
           showDescription
           showSelectionIndicator
           onSelect={(_index, option) => {
-            // The conformance run happens once before the renderer mounts (`index.tsx`); selecting
-            // a new pack here is a no-op in the current build. The callback is plumbed so a future
-            // change that does reload can plug into the same `<select>` without rewriting the
-            // route, and a reader gets immediate feedback that the selection was registered.
             if (option?.value !== undefined) {
               loadPack(String(option.value))
+              toast.show(`Pack selected: ${option.value} — restart CLI to reload run`, "warn")
             }
           }}
         />

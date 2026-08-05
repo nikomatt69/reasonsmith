@@ -1,32 +1,20 @@
 /**
- * The app shell: the renderer, the provider stack, the route switch, and the masthead.
- *
- * Stack order, top-down, outermost-first:
- *
- *   ErrorBoundary
- *     ThemeProvider       — design tokens, result tone (one palette, not six)
- *     ExitProvider        — single exit() authority; restores terminal, runs onExit hooks
- *     ReportProvider      — the run + the selected row + the audience (the report's authority)
- *     RouteProvider       — which route is showing (findings/detail/limits/packs/systems)
- *     DialogProvider      — overlay stack (help, alerts); mounts the overlay over the panel
- *     KeybindProvider     — owns the keyboard; reaches for the four above
- *     App                 — Masthead + Switch(route) + FooterHints
- *
- * Every panel inside the switch is wrapped in a rounded-border box (the nikcli "every panel is a
- * dialog" rule). The overlay is mounted by DialogProvider itself, so the route subtree does not
- * have to know about dialogs.
+ * The app shell: enterprise provider stack, startup screen, route switch, masthead.
  */
 
 import { type CliRendererConfig, createCliRenderer } from "@opentui/core"
 import { render } from "@opentui/solid"
-import { ErrorBoundary, Match, Switch } from "solid-js"
+import { ErrorBoundary, Match, Show, Switch, createSignal } from "solid-js"
 import type { ConformanceReport } from "@reasonsmith/core"
 import { DialogProviderWithOverlay } from "./ui/dialog.tsx"
+import { EnterpriseKeymapProvider } from "./context/enterprise-keymap.tsx"
 import { ExitProvider } from "./context/exit.tsx"
 import { KeybindProvider } from "./context/keybind.tsx"
+import { KVProvider } from "./context/kv.tsx"
 import { ReportProvider } from "./context/report.tsx"
 import { RouteProvider, useRoute } from "./context/route.tsx"
 import { ThemeProvider, useTheme } from "./context/theme.tsx"
+import { ToastProvider, ToastViewport, useToast } from "./context/toast.tsx"
 import { Detail } from "./routes/detail.tsx"
 import { Findings } from "./routes/findings.tsx"
 import { Limits } from "./routes/limits.tsx"
@@ -35,12 +23,15 @@ import { Settings } from "./routes/settings.tsx"
 import { Systems } from "./routes/systems.tsx"
 import { FooterHints } from "./ui/footer-hints.tsx"
 import { ReportHeader } from "./ui/header.tsx"
+import { StartupScreen } from "./ui/startup-screen.tsx"
 import { StatusBar } from "./ui/status-bar.tsx"
+import { useKV } from "./context/kv.tsx"
 
 function rendererConfig(): CliRendererConfig {
+  const enterprise = process.env.REASONSMITH_TERMINAL === "1"
   return {
-    targetFps: 45,
-    gatherStats: false,
+    targetFps: enterprise ? 60 : 45,
+    gatherStats: enterprise,
     exitOnCtrlC: false,
     useMouse: true,
     enableMouseMovement: true,
@@ -69,19 +60,25 @@ export async function tui(report: ConformanceReport): Promise<void> {
           return null
         }}
       >
-        <ThemeProvider>
-          <ExitProvider>
-            <ReportProvider report={report}>
-              <RouteProvider>
-                <DialogProviderWithOverlay>
-                  <KeybindProvider>
-                    <App />
-                  </KeybindProvider>
-                </DialogProviderWithOverlay>
-              </RouteProvider>
-            </ReportProvider>
-          </ExitProvider>
-        </ThemeProvider>
+        <KVProvider>
+          <ThemeProvider>
+            <ExitProvider>
+              <ReportProvider report={report}>
+                <RouteProvider>
+                  <DialogProviderWithOverlay>
+                    <EnterpriseKeymapProvider>
+                      <ToastProvider>
+                        <KeybindProvider>
+                          <AppShell />
+                        </KeybindProvider>
+                      </ToastProvider>
+                    </EnterpriseKeymapProvider>
+                  </DialogProviderWithOverlay>
+                </RouteProvider>
+              </ReportProvider>
+            </ExitProvider>
+          </ThemeProvider>
+        </KVProvider>
       </ErrorBoundary>
     ),
     renderer,
@@ -95,6 +92,25 @@ export async function tui(report: ConformanceReport): Promise<void> {
       }
     }, 50)
   })
+}
+
+function AppShell() {
+  const kv = useKV()
+  const toast = useToast()
+  const [ready, setReady] = createSignal(!kv.showStartup() || process.env.REASONSMITH_SKIP_STARTUP === "1")
+
+  return (
+    <Show
+      when={ready()}
+      fallback={<StartupScreen onReady={() => {
+        setReady(true)
+        toast.show("Enterprise dashboard ready", "ok", 2200)
+      }} />}
+    >
+      <App />
+      <ToastViewport />
+    </Show>
+  )
 }
 
 function App() {

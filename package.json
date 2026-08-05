@@ -23,6 +23,7 @@
       "@effect/platform": "4.0.0-beta.83",
       "@effect/platform-bun": "4.0.0-beta.83",
       "@opentui/core": "0.4.5",
+      "@opentui/keymap": "0.4.5",
       "@opentui/solid": "0.4.5",
       "@tsconfig/bun": "1.0.9",
       "effect": "4.0.0-beta.83",

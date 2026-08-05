@@ -1,14 +1,11 @@
 /**
- * The theme context — enterprise palettes with invariant verdict semantics.
- *
- * nikcli loads sixty JSON palettes; this TUI carries three enterprise chrome palettes while
- * keeping verdict colours fixed. Colours live in a Solid store so palette switches re-render
- * every panel without touching individual components.
+ * The theme context — enterprise palettes with invariant verdict semantics + KV persistence.
  */
 
 import { createEffect, createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
 import { createSimpleContext } from "./helper.tsx"
+import { useKV } from "./kv.tsx"
 import { A, resultTone, strengthWord } from "../theme.ts"
 import {
   type PaletteId,
@@ -23,14 +20,22 @@ function chromeFor(id: PaletteId) {
   return { ...getPalette(id).chrome, ...VERDICT }
 }
 
+function initialPalette(kv: ReturnType<typeof useKV>): PaletteId {
+  const saved = kv.palette()
+  if (saved && PALETTE_IDS.includes(saved)) return saved
+  return "enterprise-dark"
+}
+
 export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
   name: "Theme",
   init: () => {
-    const [paletteId, setPaletteId] = createSignal<PaletteId>("enterprise-dark")
-    const [color, setColor] = createStore(chromeFor("enterprise-dark"))
+    const kv = useKV()
+    const [paletteId, setPaletteId] = createSignal<PaletteId>(initialPalette(kv))
+    const [color, setColor] = createStore(chromeFor(paletteId()))
 
     createEffect(() => {
       setColor(chromeFor(paletteId()))
+      kv.setPalette(paletteId())
     })
 
     const palettes = (): readonly Palette[] => PALETTE_IDS.map((id) => getPalette(id))

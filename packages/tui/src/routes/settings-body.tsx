@@ -9,15 +9,18 @@ import { DialogTheme } from "../ui/dialog-theme.tsx"
 import { AUDIENCE_HELP, AUDIENCE_LABELS } from "../ui/audiences.ts"
 import { Clickable } from "../ui/clickable.tsx"
 import { useKeybind } from "../context/keybind.tsx"
+import { useKV } from "../context/kv.tsx"
 import { useReport } from "../context/report.tsx"
 import { useRoute } from "../context/route.tsx"
 import { useTheme } from "../context/theme.tsx"
+import { configPath } from "../util/config.ts"
 
 export function SettingsBody(props: { compact?: boolean }) {
   const theme = useTheme()
   const report = useReport()
   const route = useRoute()
   const keybind = useKeybind()
+  const kv = useKV()
   const dialog = useDialog()
 
   const audienceName = () => AUDIENCE_LABELS[report.audience()] ?? report.audience()
@@ -55,6 +58,17 @@ export function SettingsBody(props: { compact?: boolean }) {
         <Row label="audience" value={audienceName()} onClick={() => report.cycleAudience()} />
         <Row label={`cycle  (${audienceKey()})`} value="next audience" onClick={() => report.cycleAudience()} />
         <ShowRow when={!props.compact} label="role" value={audienceRole()} />
+      </Section>
+
+      <Section heading="Enterprise">
+        <Row label="keymap" value="@opentui/keymap 0.4.5" />
+        <Row label="palettes" value={`${theme.palettes().length} enterprise themes`} />
+        <Row label="config file" value={configPath()} />
+        <Row
+          label="startup screen"
+          value={kv.showStartup() ? "enabled" : "disabled"}
+          onClick={() => kv.setShowStartup(!kv.showStartup())}
+        />
       </Section>
 
       <Section heading="Leader key">

@@ -3,8 +3,9 @@
  */
 
 import { For, Show, createMemo, createSignal } from "solid-js"
-import { useKeyboard, useRenderer } from "@opentui/solid"
+import { useKeyboard } from "@opentui/solid"
 import { useDialog } from "./dialog.tsx"
+import { useExit } from "../context/exit.tsx"
 import { useReport } from "../context/report.tsx"
 import { useRoute } from "../context/route.tsx"
 import { useTheme } from "../context/theme.tsx"
@@ -26,7 +27,7 @@ const GROUP_LABELS: Record<string, string> = {
 
 export function DialogCommandPalette() {
   const dialog = useDialog()
-  const renderer = useRenderer()
+  const exit = useExit()
   const theme = useTheme()
   const report = useReport()
   const route = useRoute()
@@ -45,7 +46,7 @@ export function DialogCommandPalette() {
     openTheme: () => dialog.push(() => <DialogTheme />),
     openSettings: () => dialog.push(() => <DialogSettings />, { size: "large" }),
     openCommandPalette: () => {},
-    quit: () => renderer.stop(),
+    quit: () => void exit.exit(),
   })
 
   const filtered = createMemo(() => filterCommands(buildCommands(ctx()), query()))

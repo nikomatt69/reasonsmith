@@ -22,7 +22,6 @@ import type { RequirementResult } from "@reasonsmith/core"
 import { useReport } from "../context/report.tsx"
 import { useRoute } from "../context/route.tsx"
 import { useTheme } from "../context/theme.tsx"
-import { ReportHeader } from "../ui/header.tsx"
 import { VerdictChip } from "../ui/verdict-chip.tsx"
 import { Clickable } from "../ui/clickable.tsx"
 
@@ -77,7 +76,6 @@ export function Findings() {
       title={`Findings (${report.results().length})`}
       titleAlignment="left"
     >
-      <ReportHeader />
       <box
         flexDirection="row"
         flexShrink={0}

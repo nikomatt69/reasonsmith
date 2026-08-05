@@ -20,9 +20,11 @@
 
 import { listSystems } from "@reasonsmith/systems"
 import { useTheme } from "../context/theme.tsx"
+import { useToast } from "../context/toast.tsx"
 
 export function Systems() {
   const t = useTheme()
+  const toast = useToast()
 
   const options = () =>
     listSystems().map((entry) => ({
@@ -63,11 +65,8 @@ export function Systems() {
           showDescription
           showSelectionIndicator
           onSelect={(_index, option) => {
-            // See the matching note in `packs.tsx`: the run happens once before the renderer
-            // mounts, so an `onSelect` here is informational today and a wiring point for a future
-            // reload — the callback is plumbed for parity with `packs.tsx`.
             if (option?.value !== undefined) {
-              void option.value
+              toast.show(`System selected: ${option.value} — restart CLI to reload run`, "warn")
             }
           }}
         />
