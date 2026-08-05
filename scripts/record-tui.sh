@@ -68,10 +68,14 @@ trap - EXIT
 $TC stop tui-check
 
 echo "==> Building PR evidence bundle"
+BRANCH="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
+REMOTE="$(git -C "$ROOT" remote get-url origin 2>/dev/null | sed -E 's#.*github.com[:/]([^/]+/[^/.]+)(\.git)?$#\1#' || echo nikomatt69/reasonsmith)"
+LINK_BASE="https://raw.githubusercontent.com/${REMOTE}/${BRANCH}/artifacts/tui/tui-check"
+
 $TC bundle \
   --recording "$RECORD" \
   --out "$OUT" \
-  --link-base "artifacts/tui/tui-check" \
+  --link-base "$LINK_BASE" \
   --include-recording \
   --result passed \
   --title "Reasonsmith enterprise TUI verification" \
