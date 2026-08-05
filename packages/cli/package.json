@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@reasonsmith/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "description": "Reasonsmith command-line entry point: run a conformance check over a system against a regulation pack, render the report, and serve it for the TUI to attach to.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test ./src/",
+    "run": "bun ./src/index.ts"
+  },
+  "bin": {
+    "reasonsmith": "./bin/reasonsmith"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@effect/platform-bun": "catalog:",
+    "@reasonsmith/core": "workspace:*",
+    "@reasonsmith/engines": "workspace:*",
+    "@reasonsmith/systems": "workspace:*",
+    "@reasonsmith/tui": "workspace:*",
+    "effect": "catalog:",
+    "yargs": "18.0.0"
+  },
+  "devDependencies": {
+    "@tsconfig/bun": "catalog:",
+    "@types/bun": "1.3.7",
+    "@types/yargs": "17.0.33",
+    "typescript": "catalog:"
+  }
+}

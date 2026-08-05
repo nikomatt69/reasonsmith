@@ -53,6 +53,8 @@ written in:
 | `logical` | 3 | any other property of one decision record |
 | `temporal` | 4 | a property over the trace |
 | `counterfactual` | 1 | invariance under one named protected variable |
+| `undetermined` | 0 | a predicate no engine here settles, and who does |
+| `graded` | 0 | a truth degree over an algebra the pack declares |
 
 **Three quarters of the shipped duties are presence checks.** Reproduce the count with
 `reasonsmith validate-pack ecoa eu_ai_act gdpr gpai table7`, which prints each requirement's
@@ -68,11 +70,16 @@ when the fifth pack shipped — from 13 of 19 to 21 of 28.
 Presence is also not adequacy, at the level of the individual duty: a reason field that is filled
 in is not a reason that is sufficient. Where a clause supplies its own list of insufficient
 wordings, this tool uses it and can go no further
-([`docs/refinement.md`](refinement.md), *presence is not adequacy*).
+([`docs/refinement.md`](refinement.md), *presence is not adequacy*). The two zero rows above are the
+machinery for the rest of that problem, shipped with no duty on it: a pack can now say that
+*meaningful* is open-textured and name who settles it, or carry a truth degree for it, and neither
+turns the adjective into a verdict — a graded duty is reported *not evaluated* with its degree
+beside it as a measurement ([`docs/semantics.md`](semantics.md) §9). Which clause gets the first one
+is a legal reading ([`ROADMAP.md`](../ROADMAP.md) §6).
 
 ## 3. A rung is not a grade
 
-`unattainable < observed < probed < proved` ranks **how a conclusion was reached**, never **what it
+`unattainable < observed < recounted < probed < proved` ranks **how a conclusion was reached**, never **what it
 was reached about**. [`docs/semantics.md`](semantics.md) §4, *The lattice*, states the consequence,
 and it is quoted rather than paraphrased here:
 
@@ -86,6 +93,15 @@ and it is quoted rather than paraphrased here:
 So a report full of `proved` verdicts is not a better report than one full of `observed` verdicts.
 It is a report about a system that exposed more, and the question of whether what it exposed is the
 system that runs in production is question 1 above.
+
+**And a basis is not a rung.** Two shipped duties are not about the system's executions at all —
+one is about a *pair* of them and one is about the inference artefact behind a decision — so
+neither can reach every rung whatever the system exposes. `relational` and `artifact` name what the
+evidence is about; they do not sit above or below `observed`, they are not ordered against each
+other, and comparing two of them raises rather than answering
+([`docs/semantics.md`](semantics.md) §10). A ceiling on one of those duties is a fact about the
+duty, and a report that showed it as an unfinished ladder was telling a reader to expose more of a
+system that could expose nothing further.
 
 ## 4. The strongest results need a system that exposes its inference, and most do not
 

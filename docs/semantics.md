@@ -118,6 +118,13 @@ constructed at all without the search budget that produced it
 
 ## 2. The property language
 
+**The definition lives in [`docs/language.md`](language.md)** — the grammar, checked against the
+parser; the denotation `⟦·⟧_{M,A}`, a partial map from sets of traces to a declared algebra, of
+which every engine below is an implementation; and the four implementations named as such, with
+their differential tests as the conformance evidence. That document also reports four shapes on
+which the trace-rung implementation and the definition disagree (`docs/language.md` §4). This
+section says what the language *is* for a reader of a verdict; go there for what a formula *means*.
+
 There is **one** property language, in `rulelang.py`, and `formalism` names which fragment of it a
 requirement's `spec` belongs to. The four fragments are decided by the shape of the formula, not by
 the word a pack author typed: `classify_fragment` returns `counterfactual` when the formula is the
@@ -347,15 +354,30 @@ never calls `eval`, `exec` or `compile`; the whitelist is the interpreter itself
 | Binary | `+`, `-`, `*`, `/`, `%` |
 | Boolean | `and`, `or` |
 | Comparison | `==`, `!=`, `<`, `<=`, `>`, `>=`, including chained |
-| Calls | `implies(a, b)` / `Implies(a, b)`, `abs(x)`, `min(a, b)`, `max(a, b)`, `present(signal)`, `contains(signal, "phrase")` — no keyword arguments |
+| Calls | `implies(a, b)` / `Implies(a, b)`, `Iff(a, b)`, `abs(x)`, `min(a, b)`, `max(a, b)`, `present(signal)`, `contains(signal, "phrase")` — no keyword arguments |
 | Temporal | `always`, `eventually`, `once`, `historically`, `next`, `prev`, `rise`, `fall`, each over one operand |
-| Arrows | `<=>` and `<->` rewrite to `==`; `=>`, `->` and ` implies ` rewrite to `Implies(...)` |
+| Arrows | `<=>` and `<->` rewrite to `Iff(...)`; `=>`, `->` and ` implies ` rewrite to `Implies(...)` |
 
 Arrow rewriting is textual and happens before parsing. It respects parentheses and string literals,
 so an arrow inside a quoted string is left alone (`test_arrow_rewriting_leaves_string_literals_alone`)
 and a parenthesised implication binds tighter than a surrounding `and`
 (`test_arrow_rewriting_respects_parentheses_and_precedence`). Chained equivalence is refused as
-ambiguous rather than associated silently. Everything not in the table raises
+ambiguous rather than associated silently, while an implication chain is admitted
+right-associatively, because `a -> b -> c` has a settled reading in every logic this package
+touches and `a <=> b <=> c` does not
+(`test_a_chained_equivalence_is_refused_as_ambiguous`,
+`test_an_implication_chain_stays_admitted_right_associatively`).
+
+Equivalence rewrites to a **call and never to `==`**. Over the Booleans the two are the same
+function — `eval_expression` reads `Iff` as equality of truth values and
+`test_the_interpreter_reads_equivalence_as_the_truth_table` holds it to the table, with
+`test_the_solver_reads_equivalence_as_the_truth_table` holding the Z3 encoding to the same — so no
+two-valued spec moved. Over a residuated lattice they are not: `==` is a crisp comparison of two
+degrees, which is a threshold §9 refuses, and collapsing the connective textually before the parse
+meant the graded fragment refused an equivalence naming a construct the author never wrote.
+`implies` was spared only by being spelled as a call rather than as an arrow, which was an accident
+of text substitution and not a decision. `test_the_rewriter_never_collapses_equivalence_to_a_comparison`
+fails if the rewriter ever collapses it again. Everything not in the table raises
 `UnsupportedConstructError`; nothing is skipped.
 
 **Statements** (`execute_statements`, used for `sut.logic()` rule blocks) accept assignment to a
@@ -825,12 +847,13 @@ carry — where the measurement was made and the verdict is still withheld
 `artifacts.InferenceArtifact` is this package's own answer to *what a reason can be measured from*:
 what a reason-bearing artefact is, what it must expose for the deletion probe to measure reasons
 from it, and whether its inference is **monotone in its facts**. A nesyarena ground program is one
-family satisfying it (`artifacts/ground_program.py`), and it is the only one shipped; neither
-`artifacts/__init__.py` nor `certificate.py` imports a representation, which is what makes a second
-family — a knowledge graph, a reason trace, an extracted rule set, a decision tree — an adapter
-rather than a second branch in the core
+family satisfying it (`artifacts/ground_program.py`) and a reason trace is the second
+(`artifacts/reason_trace.py`); neither `artifacts/__init__.py` nor `certificate.py` imports a
+representation, which is what makes each of them — and a knowledge graph, an extracted rule set or a
+decision tree after them — an adapter rather than a second branch in the core
 (`test_the_ground_program_family_is_one_adapter_and_the_protocol_names_no_representation`,
-`test_the_protocol_is_satisfiable_without_a_ground_program`). None of those is implemented here.
+`test_the_protocol_is_satisfiable_without_a_ground_program`). The two shipped families do not report
+at the same strength, and the paragraph below on `recounted` is why.
 
 **Three states, and only the first is measured.** `engines/certificate.py` asks the declaration
 before it certifies anything, and asks it again of the measurement afterwards; every refusal is
@@ -877,13 +900,57 @@ monotone is a verdict over a subset, which the completeness rule above already r
 held a decision this instrument cannot read
 (`test_the_refusal_survives_a_whole_conformance_run_and_reaches_no_weaker_duty`).
 
-**A family whose reasons are extracted rather than enumerated exactly does not belong on this rung,
-and this protocol does not yet say so in code.** An LLM reason trace is not a proof object: a
-certificate over one claims strictly less than a certificate over a ground program and must not
-report at the same strength. The lattice cannot express that difference — `probed` records *how* a
-conclusion was reached and not *what it was reached about* (§4) — so admitting such a family needs a
-decision about the lattice before it needs an adapter. Stated here rather than guarded, because
-nothing in this tree can check a family's claim that its enumeration is exact.
+**A family whose reasons are recounted rather than enumerated reports one rung lower, and the rung
+is refused rather than trusted.** An LLM reason trace is not a proof object: a certificate over one
+claims strictly less than a certificate over a ground program and must not report at the same
+strength. This paragraph used to end there, saying the lattice could not express the difference and
+that admitting a second family therefore needed a decision about the lattice before it needed an
+adapter. That decision was made, and `Strength.RECOUNTED` is it.
+
+*What the rung is.* `recounted` is the rung a verdict reaches when the reason set the deletion probe
+ran over is one the **system recounted about its own inference**, rather than one enumerated from a
+model encoding. The probe is the same probe: every reason's private facts are switched off in turn
+and the system's own answer re-run. What differs is the reference set, and the difference is exactly
+the one the literature calls **faithfulness**: a self-explanation may be plausible and yet not
+describe the computation that produced the decision (A. Jacovi, Y. Goldberg, *Towards Faithfully
+Interpretable NLP Systems: How Should We Define and Evaluate Faithfulness?*, ACL 2020, 4198–4205;
+measured, as here, by erasure — J. DeYoung, S. Jain, N. F. Rajani, E. Lehman, C. Xiong, R. Socher,
+B. C. Wallace, *ERASER: A Benchmark to Evaluate Rationalized NLP Models*, ACL 2020, 4443–4458; and
+demonstrably failing on decoders — M. Turpin, J. Michael, E. Perez, S. R. Bowman, *Language Models
+Don't Always Say What They Think: Unfaithful Explanations in Chain-of-Thought Prompting*, NeurIPS
+2023). A probe over a recounted set can show that the answer does not depend on a reason the system
+recounted; it can never show that the set is all of them, which is what the `probed` rung's
+enumeration establishes and is why that rung is above this one.
+
+*Why a rung and not a basis.* §10's distinction decides it: evidence about a **different object** is
+a different basis, evidence about the **same object, less deeply** is a different rung. A reason
+trace makes a claim about the inference behind a decision, which is what the `artifact` basis is
+already about. It is merely a claim nothing here can check as hard. So the `artifact` row gains a
+member and no fifth basis exists
+(`test_a_recounted_reason_set_reports_one_rung_below_an_enumerated_one`).
+
+*Where the difference is enforced.* A family says which it is with `reasons_are_exact`, and
+**silence claims the weaker rung** — the opposite default from `monotone` above, because here the
+two answers are not both dangerous: guessing monotone accuses a compliant system, while guessing
+recounted only understates one (`test_a_family_that_does_not_say_claims_the_weaker_rung`). One
+certified decision whose set was recounted caps the whole run, the flag rides on the result
+(`report.EXACT_REASON_SET_KEY`), and `RequirementResult.__post_init__` **refuses** a result that
+claims above it — the same shape of structural refusal the probe budget and the plug-in ceiling
+already carry (`test_a_recounted_reason_set_cannot_be_reported_at_the_enumerated_rung`). Nothing
+here audits a family's claim that its enumeration is exact; what is new is that the claim has to be
+made, and that not making it costs a rung.
+
+**The second family, and what it does not reach.** `artifacts/reason_trace.py` is that adapter: a
+set of reasons the system recounts for one decision, each tested by suppressing its facts and
+re-running the system. It widens what can be certified from *systems that expose a ground program*
+to *systems that recount their reasons and can be re-run with a fact withheld* — a language model
+behind a `complete()` stub is one, and the whole of the coupling is one module, as
+`test_the_protocol_is_satisfiable_without_a_ground_program` said it would be. It does **not** reach
+a system that is only a log. The re-run is what makes the measurement independent of the rationale
+it is measuring; without it, `exact_value` and `engine_value` are the same self-report and every
+reason comes back live by construction. The auditors' blocker in the README — reach into systems
+that are only logs — is therefore narrowed and not closed. No shipped example system uses this
+family, so no shipped verdict moved.
 
 ### `proved` — `engines/proved.py`
 
@@ -1405,7 +1472,7 @@ alone, reading no name the rules assign, cannot be `proved` even where the decla
 
 ## 4. The lattice
 
-`unattainable < observed < probed < proved`, a strict total order
+`unattainable < observed < recounted < probed < proved`, a strict total order
 (`test_strength_lattice_ordering`, and `test_semantics_doc_states_the_lattice_the_code_defines`
 holds this sentence to the order the code defines). Comparison against anything that is not a
 `Strength` is refused rather than coerced (`test_strength_comparison_rejects_foreign_types`).
@@ -1414,6 +1481,10 @@ holds this sentence to the order the code defines). Comparison against anything 
 
 - `unattainable` — capability analysis stopped evaluation before an engine ran.
 - `observed` — a record or temporal conclusion was reached from the supplied trace.
+- `recounted` — a conclusion was reached by perturbing a reason set the *system* recounted, rather
+  than one enumerated from a model encoding. The same probe as `probed`, over evidence that is
+  second-hand about the thing it describes: only the `artifact` basis has such evidence, and §3
+  (*The inference artefact*) is where the rung is defined.
 - `probed` — a logical conclusion was reached by bounded replay through `decide()`.
 - `proved` — a logical conclusion was reached by solver reasoning over the valuations admitted by
   the declared constraints.
@@ -1429,6 +1500,11 @@ can only be discharged by a record check is not a weaker duty, and it can never 
 The weakest-link direction is what the code composes on: `min_strength` exists, and combining
 verdicts propagates the worst case, with an empty collection giving `inconclusive` rather than a
 vacuous `satisfied` (`test_verdict_combination`, `test_combining_no_verdicts_is_not_satisfied`).
+
+**And it is only one of the two coordinates.** A chain ranks how far a claim was pushed and cannot
+say what the claim was *about*; three shipped situations are about something other than the system's
+own executions, and §10 is the dimension that carries it. The lattice itself did not move — no
+member, no re-ranking — and a basis is deliberately not comparable to a rung.
 
 ### Four outcomes that must never collapse
 
@@ -1735,6 +1811,9 @@ Two consequences of that report text, followed by a separate package-level termi
 | The deletion probe is one-directional, says so on the instrument, and flags the engine where a deletion moved its answer up rather than counting a retraction silently | `test_the_certificate_limits_state_the_probe_is_one_directional`, `test_a_retracted_reason_is_reported_deleted_and_the_engine_is_flagged_non_monotone` |
 | The inference artefact is reasonsmith's own abstraction, and a ground program is one adapter satisfying it | `test_the_ground_program_family_is_one_adapter_and_the_protocol_names_no_representation`, `test_the_protocol_is_satisfiable_without_a_ground_program`, `test_switching_a_fact_off_does_not_re_enumerate_the_reasons` |
 | An artefact the deletion definition of a reason does not apply to is not evaluated — declared non-monotone, declaring nothing, or contradicted by the probe — and never violated or satisfied | `test_an_artefact_declaring_non_monotone_inference_is_not_evaluated_and_names_why`, `test_an_artefact_that_declares_nothing_is_not_evaluated_rather_than_assumed_monotone`, `test_a_declaration_the_probe_contradicts_is_refused_rather_than_trusted`, `test_the_refusal_survives_a_whole_conformance_run_and_reaches_no_weaker_duty`, `test_a_certificate_over_a_non_monotone_artefact_carries_no_verdict` |
+| A reason set the system recounted reports at `recounted`, one rung below an enumerated one, and the same probe still finds a breach | `test_a_recounted_reason_set_reports_one_rung_below_an_enumerated_one`, `test_a_recounted_reason_the_answer_does_not_depend_on_is_still_a_breach` |
+| A family that does not declare its reason set exact claims the weaker rung, and no result may claim above the flag | `test_a_family_that_does_not_say_claims_the_weaker_rung`, `test_a_recounted_reason_set_cannot_be_reported_at_the_enumerated_rung` |
+| A recounted verdict is never rendered as a probed one, in any surface | `test_a_recounted_verdict_is_never_rendered_as_a_probed_one` |
 | The declaration can be refuted by the measurement and never confirmed by it, and a monotone system's verdict is unchanged | `test_the_absence_of_the_fingerprint_is_not_evidence_of_monotonicity`, `test_a_declared_monotone_system_reaches_the_verdict_it_always_did`, `test_a_declared_monotone_certificate_still_reports_pass_or_fail` |
 | A reason the probe cannot separate is never promoted to `deleted`, on an exhaustive enumeration or any other — the licence in `sufficient-reasons.md` is deliberately unused | `test_a_reason_the_probe_cannot_separate_is_never_promoted_to_deleted` |
 | Every private fact of a reason is switched off, so coverage does not depend on what a system's fields are called | `test_every_private_fact_of_a_reason_is_switched_off` |
@@ -1750,7 +1829,18 @@ Two consequences of that report text, followed by a separate package-level termi
 | Vacuity coincides with the unreachable-trigger rule on the case that rule already handles, and the case is exercised | `test_vacuity_coincides_with_the_unreachable_trigger_rule`, `test_the_unreachable_trigger_case_is_actually_exercised` |
 | The general vacuity rule catches a vacuous pass the trigger rule does not, and reports none on the shipped packs' own formulas | `test_the_general_rule_catches_a_vacuous_pass_the_trigger_rule_does_not`, `test_no_shipped_pack_is_vacuous_on_its_own_formulas` |
 | A question the analysis cannot encode is skipped by name and never answered | `test_the_counterfactual_fragment_is_skipped_by_name_and_never_answered` |
+| The temporal fragment is decided as a finite-trace formula, so the shipped `until` duty is no longer skipped by every question the analysis asks | `test_the_until_duty_is_no_longer_skipped_by_every_question_the_analysis_asks`, `test_every_shipped_temporal_duty_is_satisfiable_by_some_non_empty_finite_trace` |
+| The finite-trace backend and rtamt cannot disagree about a shipped temporal duty | `test_the_ltlf_backend_agrees_with_the_monitor` |
+| The temporal reading is future-only, non-empty, and refuses a question over the procedure's ceiling rather than running it | `test_a_past_operator_is_skipped_by_name_rather_than_rendered`, `test_an_always_duty_satisfiable_only_by_the_empty_trace_is_reported_unsatisfiable`, `test_a_question_over_the_atom_budget_is_refused_by_name`, `test_a_pair_the_procedure_refuses_never_renders_as_a_pair_it_cleared` |
+| A counterfactual property reaches no trace logic, and a shared abstraction makes an entailment between two duties mean something | `test_the_counterfactual_atom_reaches_no_trace_logic`, `test_the_same_subexpression_is_the_same_atom_across_a_pack`, `test_the_phrase_atom_carries_the_axiom_the_z3_encoding_carries` |
+| The temporal backend is an optional extra whose absence is a note, never a weaker answer | `test_the_analysis_says_so_when_the_extra_is_absent` |
 | A mutation score travels with its limit, a system without rules gets none, and a duty no mutant moves is named | `test_a_mutation_score_travels_with_its_limit_and_a_system_without_rules_gets_none`, `test_a_duty_no_mutant_moves_is_named_as_having_no_discriminating_power` |
+| An evidence basis is a kind and never a rank: two bases do not compare, and neither does a basis against a strength | `test_the_evidence_bases_are_not_ordered`, `test_a_basis_is_never_compared_against_a_strength`, `test_no_rendering_draws_a_basis_as_a_rung` |
+| A result cannot carry a rung its basis does not admit, and the basis is derived from the duty rather than declared | `test_a_result_cannot_carry_a_rung_its_basis_does_not_admit`, `test_the_basis_is_derived_from_the_duty_and_never_declared`, `test_every_basis_admits_unattainable_so_the_capability_gate_is_never_bypassed` |
+| The rungs a basis advertises are the rungs the engine ladder can reach, in both directions | `test_the_basis_admits_exactly_the_rungs_the_ladder_can_reach`, `test_an_assessment_duty_reaches_no_engine_at_all` |
+| The three pressures are discharged: a graded duty is counted apart from an unsettled one, a counterfactual duty is never observed, and the certificate duty's ceiling is named as the duty's | `test_a_graded_duty_is_counted_apart_from_a_duty_no_engine_settled`, `test_a_counterfactual_duty_is_never_observed_however_long_the_trace`, `test_the_certificate_dutys_ceiling_is_named_as_the_dutys_and_not_the_systems` |
+| The basis changed no verdict, the behavioural basis renders as it always did, and the shipped census is pinned | `test_the_basis_changed_no_verdict_and_no_strength`, `test_the_behavioural_basis_says_nothing_and_the_other_three_name_their_ceiling`, `test_exactly_two_shipped_duties_are_not_on_the_behavioural_basis`, `test_the_json_envelope_carries_the_basis_on_every_result` |
+| No audience mistakes a kind for a rank, and the lay reader is shown no basis at all | `test_the_lay_audience_is_never_shown_an_evidence_basis` |
 | This document is linked, and every test it names exists | `test_semantics_doc_is_linked_from_the_readmes`, `test_every_test_named_in_the_semantics_doc_exists` |
 
 ---
@@ -1885,6 +1975,84 @@ human read the TOML, and which the tool now finds on its own
 it reports and incomplete for what it does not**: two properties it does not relate are not thereby
 distinguishable by any system.
 
+### The temporal fragment, decided as a finite-trace formula
+
+Everything above decides one decision *record*. A `temporal` spec is not a property of one record,
+so for a long time the analysis reduced the one shape that is — `always(f)` with `f` free of
+temporal operators, through `engines/temporal.state_property_under_always` — and reported every
+other shape skipped by name. `ecoa_reg_b_1002_9_c_2_incompleteness_notice_runs_out` is a shipped
+binding duty written with `until`, and no question this section asks could say anything about it at
+all.
+
+`src/reasonsmith/ltlf.py` closes that by handing the formula to a published decision procedure for
+linear temporal logic over **finite** traces, which is the semantics a decision log has and the same
+one `engines/temporal.py` claims for its reduction. It is **a syntax mapping and an emptiness
+question**, on exactly the terms §2 sets for rtamt: `to_ltlf` renders a `spec` in the installed
+procedure's syntax, a formula is satisfiable exactly when the automaton that procedure builds has an
+accepting state, entailment is `left & !right` unsatisfiable, and equivalence is entailment both
+ways. No temporal semantics, automaton construction, tableau or monitor is implemented in this
+repository, and none may be
+(`test_each_operator_of_the_fragment_has_one_ltlf_spelling`).
+
+**The two backends must not be able to disagree, and that is the acceptance test.** rtamt scores
+robustness over real-valued signals; the finite-trace procedure accepts or rejects a word over
+abstracted atoms. They answer the same question about the same trace only while the two syntax
+mappings render the operators the same way — and a `until` rendered as a `release`, an `always` that
+lost a position or an implication turned round would be invisible in either backend alone. This is
+the defect `test_the_solvers_fold_is_the_interpreters_fold` guards for `contains()`, in the same
+shape: a generated corpus of traces per shipped temporal duty, both backends asked, and a failure at
+the first trace on which they part (`test_the_ltlf_backend_agrees_with_the_monitor`). Only the
+definite verdicts are compared — where rtamt reports NOT EVALUATED it made no claim — and the
+comparisons that did happen are counted, because a differential test that quietly compares nothing
+passes forever.
+
+**Four things this reading costs, stated rather than left to be discovered.**
+
+- **It is propositional, so every magnitude becomes an opaque atom.** `x <= 30` bears no relation to
+  `x <= 90` here. `reasonsmith.ltlf.LTLF_ABSTRACTION_LIMIT` travels on every answer that rests on
+  it, and the soundness story is the one `_PackScope` already tells: an entailment reported holds
+  under every interpretation of the atoms and therefore for every system, and two duties it does not
+  relate are not thereby distinguishable by any system. Satisfiability is reported only in the
+  **affirmative**, because a model found over abstracted atoms may assign them an arithmetic no
+  system could produce — so a negative would not be a claim about the pack. This is why the backend
+  sits *beside* rtamt rather than replacing it: rtamt keeps every magnitude, this keeps every
+  position, and neither subsumes the other.
+- **Only the future fragment.** The installed procedure decides LTLf, which has no past operators,
+  so a spec using `once`, `historically`, `prev`, `since`, `rise` or `fall` is skipped **by name**
+  into `PackAnalysis.skipped`. Rendering one into a future operator would be implementing its
+  semantics (`test_a_past_operator_is_skipped_by_name_rather_than_rendered`). No shipped duty uses
+  one.
+- **Every question is asked over a non-empty trace.** LTLf as the installed procedure implements it
+  admits the empty trace, on which `always(f)` holds whatever `f` says — so without this every
+  `always` duty in every pack would be reported satisfiable by a trace no monitor ever reads.
+  `ltlf.NON_EMPTY` is the LTLf formula for "there is a position", conjoined into every question. It
+  is a formula of the logic and not a construction over its automata
+  (`test_an_always_duty_satisfiable_only_by_the_empty_trace_is_reported_unsatisfiable`).
+- **There is a ceiling, and questions over it are refused by name rather than run.** The procedure
+  enumerates the powerset of the atoms as the automaton's alphabet, which on this tree costs about
+  9 s at five atoms and more than 90 s at six. There is no wall clock anywhere in this package — the
+  same limit `docs/authoring-engines.md` states for a plug-in — so `ltlf.ATOM_BUDGET` is checked
+  before the automaton is built (`test_a_question_over_the_atom_budget_is_refused_by_name`). Every
+  shipped temporal duty is three or four atoms and is decided; every *pair* of them is seven, so the
+  pack's temporal entailment questions are all reported **not decided either way**, which is a
+  different fact from "no temporal duty entails another" and never renders as it
+  (`test_a_pair_the_procedure_refuses_never_renders_as_a_pair_it_cleared`).
+
+**No three-valued verdict is computed here, and that is a decision.** The runtime-verification
+literature (Bauer, Leucker and Schallhart) distinguishes *satisfied on this finite prefix* from
+*satisfied on every extension of it*, and that distinction is real for this package: a decision log
+is a finite trace and §2 already says the trace is a sample. The installed procedure exposes an
+automaton and no monitor construction over it, so the distinction is **not available from the tool**
+and is not synthesised from one — a three-valued verdict this repository computed for itself would
+be the temporal semantics it has just spent this section not implementing. Nothing on the strength
+lattice (§4) moves for it either. A procedure that reports it is what would close this.
+
+**The backend is an optional extra and its absence is a note.** `pip install reasonsmith` stays a
+two-command demo; `pip install reasonsmith[ltlf]` adds the procedure. Nothing in `check`, in any
+engine or in any shipped example touches it. With it absent, `PackAnalysis.temporal` is `None`,
+`ltlf.UNAVAILABLE_NOTE` is printed, and no temporal question is answered from a weaker substitute
+wearing the same words (`test_the_analysis_says_so_when_the_extra_is_absent`).
+
 ### Vacuity, defined for this evidence model
 
 Kupferman and Vardi define vacuity against model checking a transition system, and Beer et al. gave
@@ -1984,3 +2152,320 @@ definitions were not bent to fit the code.
   without ever editing a pack. `--analyse` is the other half of the same discipline: isomorphism
   keeps a pack faithful to the source, and these checks ask whether the formulas it grew are
   consistent, non-redundant and doing work.
+
+---
+
+## 9. Open-textured predicates
+
+Twenty-one of the twenty-nine shipped requirements are presence checks. The fourth column of
+[`refinement.md`](refinement.md) says the same thing over and over about the rest — *meaningful*,
+*sufficiently detailed*, *adequate*, *appropriate*, *without undue delay* were not modelled — and a
+`present(signal)` atom stood in for each. That is not a bad proxy for those predicates. It is a
+refusal to model them at all, and the largest single gap this tool has.
+
+This section is the semantics of the machinery for them. **No shipped duty uses it**
+(`test_no_shipped_pack_uses_either_open_texture_construct`), and which statutory predicate becomes
+the first graded one is a legal reading rather than an engineering decision.
+
+Two constructs answer different halves of the problem and compose rather than compete.
+
+### `undetermined(signal, "predicate", "authority")` — the predicate nothing here settles
+
+Some predicates are open-textured because their application to facts is contested and is settled by
+an institution rather than by a computation. The construct says so in the property itself, naming
+the predicate and **who would settle it**, and the result carries both
+(`test_an_undetermined_atom_is_reported_undetermined_and_names_its_authority`).
+
+The verdict is `inconclusive` at `strength=None` — this package's *not evaluated* — and the path is
+the one `not_evaluated_for_unreachable_trigger` already established rather than a mechanism beside
+it. Roughly three quarters of this behaviour already happened, incidentally: a duty whose predicate
+nobody had narrowed fell down whichever un-evaluated path its shape happened to take, and the report
+said an engine had fallen short rather than that the *law* had not been narrowed. What the construct
+adds is that the pack states which predicate is open-textured, and the reader is told who resolves
+it.
+
+Three things it is deliberately not. Not `unattainable`: the gap is in the formalisation, not in the
+system, and telling an adopter to change a system because a statute uses the word *meaningful* is
+the wrong instruction. Not `not applicable`: the duty reaches the system, and only its application
+to these facts is unsettled. And never `satisfied` or `violated` at any strength, because nothing
+here applied the predicate — which is why `rulelang.eval_expression` **refuses** the atom rather
+than answering it (`test_an_undetermined_atom_is_refused_by_the_two_valued_interpreter`). Every
+trace-reading engine evaluates through that interpreter, so the refusal is a fact about the code
+rather than a convention `report._engine_ladder` is trusted to keep — the same argument the
+counterfactual atom's refusal rests on.
+
+One atom leaves the whole formula unsettled, and `classify_fragment` says so before anything else
+except the counterfactual question
+(`test_an_undetermined_duty_dominates_the_settleable_parts_of_its_formula`). Answering the presence
+conjunct of `present(r) and undetermined(r, "meaningful", …)` and reporting that as the duty's
+verdict is the substitution presence-as-a-proxy already is.
+
+### `degree(signal, "predicate")` — vagueness, which is not missing information
+
+`undetermined()` is the conservative reading. It is also not the whole problem: *sufficiently
+detailed* has no sharp boundary **even when every fact is known**, which is exactly the case
+two-valued logic mishandles and many-valued logic exists for. `degree(signal, "predicate")` is an
+atom whose value is a truth degree in [0, 1]; `reasonsmith.manyvalued` is the reading.
+
+Four things are declared and none is defaulted.
+
+**The algebra is a stated parameter of the pack.** Which residuated lattice the connectives are read
+over decides what a conjunction of two `0.5`s means — Łukasiewicz says `0`, Gödel says `0.5`,
+product says `0.25` (`test_the_three_algebras_disagree_about_a_conjunction_of_two_halves`) — so a
+pack shipping a graded duty without `[grading] algebra` is refused at load, naming what is missing
+(`test_a_pack_shipping_a_graded_duty_without_an_algebra_is_refused_at_load`), and a name outside
+`manyvalued.ALGEBRAS` is refused where it is written
+(`test_a_pack_declaring_an_algebra_this_package_cannot_read_is_refused`). The three shipped members
+are the three fundamental continuous t-norms, each stored with its residuum, and each is checked
+against the residuation law rather than asserted to satisfy it
+(`test_each_algebra_is_a_residuated_lattice_on_the_grid`). A fourth member is a row in that table
+and nothing else.
+
+**The degree has a declared source, and it travels with the verdict.** A degree a system asserts
+about itself is the `reason_is_specific` self-declaration wearing a lattice's clothes, so a
+`Grading` is supplied to `check_conformance` beside the pack — third-party evidence, in the way a
+decision trace is first-party evidence — and it names the authority that fixed the scale, what the
+scale is, and how the degrees were obtained (`test_a_grading_must_state_who_fixed_the_scale`). The
+result model refuses a degree that does not carry all three
+(`test_a_result_cannot_carry_a_degree_without_the_source_that_fixed_it`), the same shape
+`PROBE_BUDGET_FIELDS` already forces on a bounded search.
+
+**The degree is quantified over the trace by the infimum**, which is the graded reading of "holds at
+every decision" and the lattice meet in every algebra here
+(`test_the_degree_of_a_trace_is_the_infimum_of_its_records`). It is deliberately not an average: an
+average lets a long run of compliant decisions pay for a bad one, which is not what a universal duty
+says. An empty trace therefore yields **no degree at all** rather than the top of the lattice —
+having observed nothing is not evidence graded 1.0, and answering `1.0` there would be
+`combine_verdicts`' vacuous `satisfied` rewritten as a number
+(`test_a_graded_duty_with_no_grading_or_no_trace_is_not_evaluated`).
+
+**A predicate nobody assessed is not a predicate assessed as false.** A grading that scores no
+degree for an atom the property reads leaves the duty *not evaluated*, never at `0.0`
+(`test_an_ungraded_atom_is_not_evaluated_and_never_a_degree_of_zero`).
+
+**The connectives above a graded atom are the algebra's, including equivalence.** Conjunction,
+disjunction and negation are the t-norm's, its dual and the one the residuum induces; an implication
+is the residuum; and `φ <=> ψ` is the **biresiduum** `(φ → ψ) ⊗ (ψ → φ)`, which under Łukasiewicz
+works out to `1 − |x − y|`
+(`test_a_graded_equivalence_is_the_algebra_s_biresiduum`,
+`test_lukasiewicz_equivalence_is_one_minus_the_distance`). It is derived from the residuum each
+`Algebra` already stores rather than added as a fourth independent operation, for the reason
+`negation` is derived: a member of that table stays internally consistent by construction. It is
+reached only because `preprocess_spec` emits `Iff(...)` for `<=>` and `<->` rather than collapsing
+them to `==` before the parse (§2, and
+`test_the_rewriter_never_collapses_equivalence_to_a_comparison`). A crisp `==` the author actually
+wrote is still a comparison of two degrees, is still a threshold, and is still refused, naming what
+was written (`test_a_graded_comparison_the_author_wrote_is_still_refused`) — the point of the
+distinction is that the author who wrote `<=>` no longer receives that refusal.
+
+Everything in a graded formula with no `degree()` atom under it is answered by the two-valued
+interpreter every other engine already uses, and mapped to `1.0`/`0.0`. That is not an optimisation:
+it is what keeps `present()`'s treatment of a blank string and `contains()`' ASCII fold meaning the
+same thing inside a graded formula and outside one
+(`test_the_crisp_parts_of_a_graded_formula_mean_what_they_mean_everywhere_else`).
+
+### The presentation rule, decided before anything renders a degree
+
+**A truth degree is a distinct evidence basis and never a rescaled verdict.** A reader handed `0.7`
+reads *seventy percent compliant*. [`authoring-packs.md`](authoring-packs.md) already forbids that
+move for a group-parity duty, and the objection is stronger here, because a degree looks like a
+measurement of the duty itself rather than of a rate the system declared. The rule, in four parts:
+
+1. **A degree is never rendered alone.** The numeral, the algebra it was combined over, and the
+   authority, scale and method that fixed it are one sentence. `render.degree_sentence` is the only
+   place any rendering formats a degree, and
+   `report.RequirementResult._validate_truth_degree` refuses a result that could not fill it — so
+   the sentence can never be short of its parts and no surface can print the number by another route
+   (`test_no_rendering_prints_a_bare_degree_without_the_source_that_fixed_it`, which checks the text
+   report, the HTML dossier, the JSON envelope and all five audience projections).
+2. **A degree is never a percentage and never a score.** It is not scaled to 100, not drawn as a
+   bar, and not compared against another duty's.
+3. **A degree carries no rung of the evidence lattice.** A result carrying one carries no
+   `strength`, refused in the result model
+   (`test_a_result_carrying_a_degree_cannot_carry_a_strength`), so nobody can read the number as a
+   fraction of a proof. **The strength lattice did not move**: no member was added, and `graded` is
+   not a rung. What such a duty *does* carry is the `assessment` evidence basis of §10, which is a
+   kind and not a rank, and which is what stops a graded duty being counted as one an engine failed
+   to settle (`test_a_graded_duty_is_counted_apart_from_a_duty_no_engine_settled`).
+4. **A lay reader is shown the duty as unsettled, in words, and never the number**
+   (`test_the_lay_audience_is_shown_the_duty_as_unsettled_and_never_the_number`). The
+   affected-individual projection already suppresses an engine's account and already reports a
+   `strength=None` result as a duty nothing here could settle; a degree shown there would be read as
+   a score whatever sentence surrounded it.
+
+### What a graded duty's verdict is, and why it is not derived from the degree
+
+`inconclusive` at `strength=None`, with the degree carried as a measurement beside it. That is the
+design and not a stub.
+
+Turning a degree into `satisfied` needs a threshold. No statute states one for *sufficiently
+detailed*, so a cut-off written into a shipped pack would be the pack author's number presented as
+the regulation's — the objection [`authoring-packs.md`](authoring-packs.md) already makes about an
+invented bound, arriving on a lattice instead of as a constant in a `spec`. The property language
+refuses to let a pack state one at all: a `degree()` atom under a comparison or under arithmetic is
+refused at load (`test_a_graded_atom_under_arithmetic_or_a_comparison_is_refused`), because
+`degree(x, "p") >= 0.8` *is* the claim that eight tenths discharges the duty.
+
+So the machinery measures, the measurement travels with its algebra and its source, and what
+discharges the duty is a legal reading this tool does not make.
+
+### The failure mode this is designed against
+
+A graded semantics makes every duty *answerable*. That would destroy the single most valuable
+property this tool has: **it refuses rather than guessing.** `unattainable` and `not evaluated` stay
+reachable and are not quietly replaced by a low truth degree.
+
+The order in `report._evaluate_requirement` is what enforces it. Both open-texture fragments are
+dispatched **after** the capability gate, so a system that can show nothing is `unattainable`
+exactly as it was before any of this existed, and never a low degree
+(`test_a_system_that_can_show_nothing_is_unattainable_and_never_graded`). Neither fragment reaches
+an engine at all: no rung of the ladder may claim to have settled a predicate this tool refuses to
+settle.
+
+### Two limits, and one thing that is now a decision rather than an omission
+
+- **A graded atom under a temporal operator is refused at load**
+  (`test_a_graded_atom_under_a_temporal_operator_is_refused_at_load`). A many-valued reading of
+  `always` or `until` is a temporal semantics, and this repository implements none at any rung —
+  rtamt monitors and `flloat` decides. The graded fragment is a property of one decision record,
+  quantified over the trace by the infimum, and nothing here reads a degree across positions.
+- **A spec using both constructs is refused**
+  (`test_a_spec_using_both_open_texture_atoms_is_refused`). One says nothing here settles the
+  predicate and the other asks for it to be graded; a formula carrying both would be classified
+  `graded` and never graded in fact, which is a pack author told a semantics ran that did not.
+- **A two-valued duty cannot acquire a degree**, and the gate is `classify_fragment`, exactly as it
+  is for the counterfactual atom: a spec with no `degree()` atom is never classified `graded`, and a
+  requirement carrying an algebra beside a two-valued formalism is refused
+  (`test_a_two_valued_duty_cannot_acquire_a_degree`). A pack that declares an algebra hands it to
+  its graded requirements and to no others, so shipping one graded duty leaves its presence checks
+  as two-valued as they were
+  (`test_a_pack_declaring_an_algebra_leaves_its_two_valued_duties_two_valued`).
+
+---
+
+## 10. The evidence basis: what the claim is about, beside how far it was pushed
+
+§4's lattice is a **chain**, and a chain ranks one thing along one axis. Three shipped situations
+are not on that axis at all, and each of them was, before this section, a sentence in a module
+docstring that no result, no count and no rendering carried:
+
+- a **counterfactual** duty is a property of a *pair* of executions, so `_engine_ladder` gives it
+  two rungs and no trace rung beneath them;
+- the **certificate** duty is measured against the inference artefact behind a decision, so its
+  ladder reaches neither the trace rung beneath it nor the proof rung above it;
+- a **graded** duty (§9) is `inconclusive` at `strength=None`, which made it indistinguishable in
+  the counts and in the headline from a duty an engine merely failed to settle.
+
+The answer is a second coordinate and **not** four more members of the lattice.
+`verdict.EvidenceBasis` says what a duty's evidence is *about*; `Strength` says how far a claim
+about it was pushed. The lattice did not move for any of the three: no member was added for them,
+no member was re-ranked, and `test_semantics_doc_states_the_lattice_the_code_defines` generates §4's
+sentence from `Strength` itself. It has moved **once** since, and the distinction this section draws
+is what decided that it should: `recounted` is evidence about the *same* object as `artifact` —
+the inference behind a decision — reached less deeply, so it is a rung on that row and not a fifth
+basis (§3, *The inference artefact*). Evidence about a different object is a basis; evidence about
+the same object, less deeply, is a rung. That is the test to apply to the next candidate.
+
+### The four bases, and the literature each names
+
+| Basis | What the evidence is about | Rungs it admits | Named after |
+|---|---|---|---|
+| `behavioural` | the system's own executions, one at a time | `unattainable`, `observed`, `probed`, `proved` | a **trace property** — Alpern & Schneider, *Defining Liveness*, IPL 21(4), 1985 |
+| `relational` | a *pair* of executions | `unattainable`, `probed`, `proved` | a **2-safety property** — Terauchi & Aiken, SAS 2005; a hyperproperty rather than a trace property — Clarkson & Schneider, JCS 18(6), 2010; self-composition as the proof method — Barthe, D'Argenio & Rezk, CSFW 2004; the duty itself — Kusner, Loftus, Russell & Silva, *Counterfactual Fairness*, NeurIPS 2017 |
+| `artifact` | the inference *behind* a decision, not what was decided | `unattainable`, `recounted`, `probed` | the **abductive explanation** — Ignatiev, Narodytska & Marques-Silva, AAAI 2019 (`docs/sufficient-reasons.md` §9 for the rest); the model-precise rather than behaviour-sampled side of formal XAI — Marques-Silva & Ignatiev, AAAI 2022; and, for the `recounted` rung, the **faithfulness** of a self-reported rationale — Jacovi & Goldberg, ACL 2020; erasure as its measurement — DeYoung et al., ACL 2020; the failure it measures — Turpin, Michael, Perez & Bowman, NeurIPS 2023 |
+| `assessment` | how an open-textured predicate applies, per a named authority | `unattainable` alone | a **truth degree over a residuated lattice** — Hájek, *Metamathematics of Fuzzy Logic*, 1998; degree of truth is not degree of belief — Dubois & Prade, AMAI 32, 2001 |
+
+Every row's rung list is read off what an engine can actually reach, and the two are held together
+in both directions: no ladder may offer a rung its duty's basis refuses, and no basis may advertise
+a rung *above* the strongest any shipped ladder offers
+(`test_the_basis_admits_exactly_the_rungs_the_ladder_can_reach`). The second direction is a ceiling
+check rather than an equality because a ladder entry is chosen without executing the system, so the
+certificate branch cannot know whether the artefact behind a decision will enumerate its reasons or
+recount them and declares the stronger of the two; that the lower rung is reachable is shown by
+running the engine instead (`test_a_recounted_reason_set_reports_one_rung_below_an_enumerated_one`). `unattainable` is in every row
+because it is not an engine's conclusion — the capability gate is a set difference over declared
+signal names, identical for every duty, and it runs before any basis is consulted
+(`test_every_basis_admits_unattainable_so_the_capability_gate_is_never_bypassed`). The `assessment`
+basis reaches no engine at all, which is §9's guarantee restated in the result model
+(`test_an_assessment_duty_reaches_no_engine_at_all`).
+
+### A basis is a kind and never a rank
+
+This is the whole reason the answer is a dimension rather than four more rungs, and it is
+structural rather than conventional:
+
+1. **The members carry no order.** `<`, `<=`, `>` and `>=` raise `TypeError` between two bases and
+   between a basis and a strength, so nothing can sort them into a ladder, and no basis has a
+   `rank` (`test_the_evidence_bases_are_not_ordered`, `test_a_basis_is_never_compared_against_a_strength`).
+2. **A result may not carry a rung its basis does not admit.** `RequirementResult.__post_init__`
+   refuses one, so a counterfactual duty cannot be reported `observed`, a certificate duty cannot
+   be reported `proved` or `observed`, and an assessment duty cannot carry a rung at all
+   (`test_a_result_cannot_carry_a_rung_its_basis_does_not_admit`). Three sentences that lived in
+   three module docstrings are now one refusal.
+3. **The basis is derived from the duty and never declared.** It is a function of the requirement
+   alone — the certificate signal, then the fragment — so it is not a pack field, not a system's
+   self-description, and not a function of which engine happened to answer
+   (`test_the_basis_is_derived_from_the_duty_and_never_declared`). A declared basis would let a
+   pack author or an adapter widen what a duty may claim, which is the move refusal 2 exists to
+   stop.
+4. **No rendering draws a basis as a rung.** `render.basis_sentence` is the only place any
+   rendering words one — the discipline `render.degree_sentence` already carries for a degree — and
+   the basis word never appears inside a step of the drawn lattice
+   (`test_no_rendering_draws_a_basis_as_a_rung`).
+
+### What each reader is shown
+
+The rule is that the basis is only ever shown to explain a **ceiling**, so the behavioural basis —
+every `record`, `logical` and `temporal` duty, which is every shipped duty but two — renders exactly
+as it always did, with no sentence and the four-rung track that has always been drawn
+(`test_the_behavioural_basis_says_nothing_and_the_other_three_name_their_ceiling`). For the other
+three:
+
+- **Text report.** One line under the verdict line, naming the basis and the rungs this duty can
+  reach. It sits there because what it explains is the tier tag on the line above: `[PROBED]` with
+  `proved` greyed out beside it is an instruction to expose more of the system, and for a
+  certificate duty that instruction is false.
+- **HTML dossier.** The strength-lattice track draws the rungs *this duty's basis admits* and no
+  others, with the same sentence under it. Drawing all four for a duty that can reach two showed a
+  reader two steps the system looked one exposure away from, when nothing it could expose would
+  reach them (`test_the_certificate_dutys_ceiling_is_named_as_the_dutys_and_not_the_systems`).
+- **Counts and headline.** `on_an_assessment` is a category of its own, split out of
+  `not evaluated`. The two look identical on the result — `strength=None`, `inconclusive` — and
+  mean opposite things: `not evaluated` says something fell short and instructs a reader to fix the
+  evidence or the specification (§4), while a duty on the `assessment` basis had no rung to reach
+  and nothing fell short (`test_a_graded_duty_is_counted_apart_from_a_duty_no_engine_settled`).
+  It is deliberately **not** a rung and not a verdict, and it is drawn with no icon from the
+  lattice.
+- **The lay projection.** The affected individual is shown no basis at all, on the same flag that
+  already withholds the strength (`test_the_lay_audience_is_never_shown_an_evidence_basis`). This
+  is §9's presentation rule 4 applied to the other coordinate: a reader not shown the rungs cannot
+  be shown a sentence about which of them are out of reach, and a bare word like `artifact` beside
+  a verdict would be read as a grade of the answer whatever sentence surrounded it.
+- **JSON.** Every result carries `basis`. It is an added key rather than a removed or retyped one,
+  so `JSON_SCHEMA_VERSION` did not move, and the decision was made in
+  `tests/test_json_schema_version.py` rather than skipped.
+
+### What this does not do
+
+- **It changes no verdict and no strength.** Nothing here measures anything; it describes evidence
+  that was already measured. Every shipped duty against every shipped example system reports what
+  it reported before (`test_the_basis_changed_no_verdict_and_no_strength`), and the change is
+  visible in the generated documents as added sentences and shortened lattice tracks and in nothing
+  else.
+- **It does not rank a basis against a basis, or a duty against a duty.** §4 already says a
+  strength is not comparable across requirements as a quality measure. A basis is not comparable at
+  all: `artifact` is not more or less than `observed`, it is about something else, and a report
+  whose duties sit on three bases has no aggregate to compute over them.
+- **It adds no engine, no rung and no duty.** Two shipped duties are not on the behavioural basis
+  and there is no shipped graded one, which is the census
+  `test_exactly_two_shipped_duties_are_not_on_the_behavioural_basis` pins, on the shape
+  `test_exactly_one_shipped_signal_is_outside_the_paper_s_taxonomy` already uses. A third arriving
+  is a decision rather than a side effect of a pack edit.
+- **It does not accommodate a basis nobody has.** Two more are foreseeable — evidence with a
+  statistical (ε, δ) claim, and a certificate over a non-proof artefact such as a reason trace —
+  and neither is designed for here. The first would be a fifth member of `EvidenceBasis` with its
+  own row in `BASIS_RUNGS`, its own sentence and its own literature; the second is a widening of
+  the `artifact` basis, which `docs/semantics.md` §3 (*The inference artefact*) already says cannot
+  happen until the strength lattice can express an extracted reason. Neither is a reason to build
+  anything today, and building for a pressure nobody has felt is what this repository spends its
+  refusals avoiding.

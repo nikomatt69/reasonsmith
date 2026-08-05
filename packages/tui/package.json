@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@reasonsmith/tui",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "description": "Reasonsmith OpenTUI terminal interface: run a conformance check and browse the result against the strength ladder.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test ./src/",
+    "dev": "bun run --conditions=browser ./src/index.tsx"
+  },
+  "exports": {
+    ".": "./src/index.tsx"
+  },
+  "dependencies": {
+    "@opentui/core": "catalog:",
+    "@opentui/keymap": "catalog:",
+    "@opentui/solid": "catalog:",
+    "@reasonsmith/core": "workspace:*",
+    "@reasonsmith/engines": "workspace:*",
+    "@reasonsmith/systems": "workspace:*",
+    "effect": "catalog:",
+    "solid-js": "catalog:"
+  },
+  "devDependencies": {
+    "@tsconfig/bun": "catalog:",
+    "@types/bun": "1.3.7",
+    "typescript": "catalog:"
+  },
+  "bin": {
+    "reasonsmith-tui": "./bin/reasonsmith-tui"
+  }
+}

@@ -1,0 +1,182 @@
+/**
+ * The joint-deletion search: which sets of facts, deleted together, move the engine's answer.
+ *
+ * Ported from `src/reasonsmith/explanations.py`. A single deletion showing no movement is not a
+ * reason the engine ignores — two reasons jointly necessary and individually removable each look
+ * exactly like that — so every candidate-`deleted` reason is re-decided against the *joint*
+ * deletions the engine notices. The loop is MARCO: seed / shrink / grow, with a SAT solver holding
+ * the unexplored region of the subset lattice.
+ *
+ * Python holds that region in Z3. There is no Z3 here, so `sat.ts` is a small DPLL over the same
+ * clause set: one Boolean per fact, a moved seed shrinks to a CXp and blocks its supersets, an
+ * unmoved seed grows to a maximal unmoved set and blocks its subsets, and the map going
+ * unsatisfiable means every subset is covered. The *question* asked of the solver is unchanged, so
+ * `exhaustive` still means what it means in the Python: the enumeration terminated, and only an
+ * exhausted enumeration licenses calling a reason irrelevant.
+ *
+ * What must not be undone: `exhaustive` is the bound on every `deleted`, so a search that spent its
+ * budget reports `false` and the certificate refuses to call anything deleted on the strength of it.
+ * A partial search may report a reason live and may never report one deleted.
+ */
+
+import type { Fact } from "./artifacts.ts"
+import { type Clause, satModel } from "./sat.ts"
+
+/**
+ * The probe budget. A whole-space probe settles a truncating engine in one, and the loop costs on
+ * the order of |space| per contrastive set found, so this is generous for the artefacts shipped here
+ * and finite for the ones that are not.
+ */
+export const DEFAULT_PROBE_BUDGET = 256
+
+class BudgetSpent extends Error {
+  constructor() {
+    super("probe budget spent")
+    this.name = "BudgetSpent"
+  }
+}
+
+/** What the contrastive search saw, and how much of the lattice it got through. */
+export interface DeletionSearch {
+  /** The facts searched over. The caller prunes it; see `certifyArtifact`. */
+  readonly space: readonly Fact[]
+  /** Every CXp found: a subset-minimal set of facts whose joint deletion moves the engine. */
+  readonly contrastive: readonly ReadonlySet<Fact>[]
+  /** The union of them — the facts shown **relevant**. Sound whether or not the search finished. */
+  readonly relevant: ReadonlySet<Fact>
+  /** Whether the enumeration terminated. **Only** an exhaustive search licenses irrelevance. */
+  readonly exhaustive: boolean
+  /** Distinct deletion patterns the engine was re-run on. */
+  readonly probes: number
+  /** The cap those probes were counted against. */
+  readonly budget: number
+}
+
+export function searchToDict(search: DeletionSearch): Record<string, unknown> {
+  return {
+    facts_searched: [...search.space],
+    contrastive_sets: search.contrastive.map((c) => [...c].sort()),
+    relevant_facts: [...search.relevant].sort(),
+    exhaustive: search.exhaustive,
+    probes: search.probes,
+    budget: search.budget,
+  }
+}
+
+const key = (facts: Iterable<Fact>): string => [...facts].sort().join("\x00")
+
+/**
+ * Enumerate the CXps of one decision over `space`, within `budget` engine probes.
+ *
+ * `moved(D)` answers whether deleting exactly the facts `D` moves the engine's answer past the
+ * certificate's tolerance. It is assumed upward-closed — deleting more never un-moves an answer —
+ * which is what the artefact's monotonicity declaration asserts and what every step below needs.
+ */
+export function contrastiveSets(
+  moved: (deleted: ReadonlySet<Fact>) => boolean,
+  space: readonly Fact[],
+  budget: number = DEFAULT_PROBE_BUDGET,
+): DeletionSearch {
+  const cache = new Map<string, boolean>()
+  let spent = 0
+
+  const probe = (facts: Iterable<Fact>): boolean => {
+    const set = new Set(facts)
+    const k = key(set)
+    const cached = cache.get(k)
+    if (cached !== undefined) return cached
+    if (spent >= budget) throw new BudgetSpent()
+    spent += 1
+    const answer = Boolean(moved(set))
+    cache.set(k, answer)
+    return answer
+  }
+
+  let found: ReadonlySet<Fact>[] = []
+  let exhaustive = true
+  if (space.length > 0) {
+    try {
+      // If deleting everything does not move the engine, upward closure says nothing does, so the
+      // enumeration is complete and empty. This is the ordinary shape of a truncating engine and it
+      // costs one probe.
+      if (probe(space)) {
+        const outcome = marco(probe, space)
+        found = outcome.found
+        exhaustive = outcome.exhaustive
+      }
+    } catch (error) {
+      if (!(error instanceof BudgetSpent)) throw error
+      exhaustive = false
+    }
+  }
+
+  const relevant = new Set<Fact>()
+  for (const set of found) for (const fact of set) relevant.add(fact)
+
+  return { space: [...space], contrastive: found, relevant, exhaustive, probes: spent, budget }
+}
+
+/**
+ * Seed / shrink / grow, with a SAT solver holding the unexplored region of the subset lattice.
+ *
+ * One Boolean per fact. A moved seed shrinks to a CXp and blocks its supersets; an unmoved seed
+ * grows to a maximal unmoved set — whose complement is an AXp — and blocks its subsets. The map
+ * going unsatisfiable means every subset is covered, so every CXp has been found.
+ */
+function marco(
+  probe: (facts: Iterable<Fact>) => boolean,
+  space: readonly Fact[],
+): { found: ReadonlySet<Fact>[]; exhaustive: boolean } {
+  const index = new Map<Fact, number>(space.map((fact, i) => [fact, i]))
+  const clauses: Clause[] = []
+  const found: ReadonlySet<Fact>[] = []
+  try {
+    for (;;) {
+      const model = satModel(space.length, clauses)
+      if (model === null) return { found, exhaustive: true }
+      const seed = new Set(space.filter((fact) => model[index.get(fact) as number]))
+      if (probe(seed)) {
+        const core = shrink(probe, seed)
+        found.push(core)
+        clauses.push([...core].map((fact) => -(index.get(fact) as number) - 1))
+      } else {
+        const maximal = grow(probe, seed, space)
+        clauses.push(
+          space.filter((fact) => !maximal.has(fact)).map((fact) => (index.get(fact) as number) + 1),
+        )
+      }
+    }
+  } catch (error) {
+    if (!(error instanceof BudgetSpent)) throw error
+    return { found, exhaustive: false }
+  }
+}
+
+/** A moved set, reduced to a subset-minimal one: a CXp. Deterministic in sort order. */
+function shrink(
+  probe: (facts: Iterable<Fact>) => boolean,
+  seed: ReadonlySet<Fact>,
+): ReadonlySet<Fact> {
+  let core = new Set(seed)
+  for (const fact of [...seed].sort()) {
+    const smaller = new Set(core)
+    smaller.delete(fact)
+    if (smaller.size > 0 && probe(smaller)) core = smaller
+  }
+  return core
+}
+
+/** An unmoved set, extended to a maximal unmoved one: the complement of an AXp. */
+function grow(
+  probe: (facts: Iterable<Fact>) => boolean,
+  seed: ReadonlySet<Fact>,
+  space: readonly Fact[],
+): ReadonlySet<Fact> {
+  let maximal = new Set(seed)
+  for (const fact of space.filter((f) => !seed.has(f)).sort()) {
+    const larger = new Set(maximal)
+    larger.add(fact)
+    if (!probe(larger)) maximal = larger
+  }
+  return maximal
+}

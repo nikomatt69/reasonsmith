@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@reasonsmith/engines",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "description": "Reasonsmith engines: the record and observed (trace) rungs, the probed (perturb-and-replay) rung, and the certificate (reason-deletion) rung. No solver in this build, so the proof rungs are absent rather than approximated.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test ./src/"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./record": "./src/record.ts",
+    "./observed": "./src/observed.ts",
+    "./probed": "./src/probed.ts",
+    "./certificate": "./src/certificate.ts"
+  },
+  "dependencies": {
+    "@reasonsmith/core": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@tsconfig/bun": "catalog:",
+    "typescript": "catalog:",
+    "@types/bun": "catalog:"
+  }
+}

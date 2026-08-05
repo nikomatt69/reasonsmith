@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "createdAt": "2026-08-05T03:45:39.121Z",
+  "result": "passed",
+  "title": "Reasonsmith enterprise TUI verification",
+  "summary": "Action-driven enterprise demo: @opentui/keymap, 6 palettes, KV/toasts, all routes, command palette, modals, leader key — every frame follows a visible transition.",
+  "capture": {
+    "final": true
+  },
+  "sourceRecordingSha256": "c63cd147ea62d6f17b21b6573331f8e049e17d59ea932e9e62ca74657c2a0825",
+  "artifacts": [
+    {
+      "kind": "screen-text",
+      "path": "screen.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "kind": "screen-frame",
+      "path": "screen.json",
+      "bytes": 321,
+      "sha256": "d8a9b0acba690a657be8b03e3ea41116e58ef00032414987cbfdb98a728876a4"
+    },
+    {
+      "kind": "screen-svg",
+      "path": "screen.svg",
+      "bytes": 338,
+      "sha256": "89a389526bffbf2948c1d0f708712dc7cc19b446bfc72afb33992da7691ad1d1"
+    },
+    {
+      "kind": "screen-png",
+      "path": "screen.png",
+      "bytes": 15185,
+      "sha256": "c4a57b7df79390740feab5b9130175bdd78148fb945a969a196a4887805e9d91"
+    },
+    {
+      "kind": "video",
+      "path": "demo.mp4",
+      "bytes": 893052,
+      "sha256": "0a725ce6aba364dc91f266ec39aa4b55b0a809a964b63c5fd3630723bfa2d2c6"
+    },
+    {
+      "kind": "preview",
+      "path": "preview.gif",
+      "bytes": 2250329,
+      "sha256": "c008801328d3955161dfa4f31a58788519d2492a58adc17c82cfebe2cbdb3ca3"
+    },
+    {
+      "kind": "recording",
+      "path": "recording.termctrl",
+      "bytes": 1368654,
+      "sha256": "c63cd147ea62d6f17b21b6573331f8e049e17d59ea932e9e62ca74657c2a0825"
+    },
+    {
+      "kind": "pr-markdown",
+      "path": "pr.md",
+      "bytes": 736,
+      "sha256": "d43ab8ab66acdd5d57378b03ea109db64dba273efb945cb7665c94b2add3ab2c"
+    }
+  ]
+}

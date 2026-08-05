@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "cols": 112,
+  "rows": 36,
+  "foreground": {
+    "r": 201,
+    "g": 209,
+    "b": 217
+  },
+  "background": {
+    "r": 13,
+    "g": 17,
+    "b": 23
+  },
+  "cursor": {
+    "x": 0,
+    "y": 0,
+    "color": {
+      "r": 201,
+      "g": 209,
+      "b": 217
+    },
+    "blinking": false
+  },
+  "cells": []
+}

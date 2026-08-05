@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@reasonsmith/core",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "description": "Reasonsmith domain model: strength lattice, evidence basis, verdicts, requirements, packs, and the conformance run that drives the engine ladder.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test ./src/"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./verdict": "./src/verdict.ts",
+    "./spec": "./src/spec.ts",
+    "./report": "./src/report.ts",
+    "./check-conformance": "./src/check-conformance.ts"
+  },
+  "dependencies": {
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@tsconfig/bun": "catalog:",
+    "typescript": "catalog:",
+    "@types/bun": "catalog:",
+    "@reasonsmith/engines": "workspace:*",
+    "@reasonsmith/systems": "workspace:*"
+  }
+}

@@ -35,6 +35,16 @@ establishes it and it stays at `observed`. Closing *that* needs the reasoning th
 need — a bounded search over generated traces, or a finite-trace decision procedure — and no shipped
 duty uses the operator, so it waits for one, on the same terms as objective 2.
 
+A finite-trace decision procedure is now installable (`pip install reasonsmith[ltlf]`,
+`src/reasonsmith/ltlf.py`), which changes what this objective *depends on* and not what it is. That
+backend decides a duty as a **formula**, for `validate-pack --analyse`; it is never given a system,
+returns no `RequirementResult` and occupies no rung, so it establishes nothing about what any
+system's logic admits. The condition still stands unchanged: a duty using the operator first, and
+then a design answer for what would discharge it, on the same terms as objective 2.
+`docs/semantics.md` §8 states what the backend does answer, and the two limits it arrived with — a
+propositional reading of every magnitude, and no three-valued finite-trace verdict, because the
+procedure exposes no monitor construction and this repository will not synthesise one.
+
 ## 2. `until` and `since` in the temporal fragment — **met, and one half of it is a reversal**
 
 **What met it.** `ecoa_reg_b_1002_9_c_2_incompleteness_notice_runs_out` — 12 CFR 1002.9(c)(2). A
@@ -178,6 +188,49 @@ depends on the four-outcome discipline of [`docs/semantics.md`](docs/semantics.m
 system exposing nothing that grounds its claim must report *not evaluated*, never `satisfied`.
 The intake is the Discussion
 [*reasonsmith cleared two systems whose decisions are wrong — what should a pack do about it?*](https://github.com/eduardstan/reasonsmith/discussions/59).
+
+## 6. The first duty written with an open-textured predicate
+
+**The gap.** [`docs/semantics.md`](docs/semantics.md) §9 opens by stating it: twenty-one of the
+twenty-nine shipped requirements are presence checks, and the fourth column of
+[`docs/refinement.md`](docs/refinement.md) says the same thing row after row — *meaningful*,
+*sufficiently detailed*, *adequate*, *appropriate*, *without undue delay* were not modelled. Presence
+is not a bad proxy for those predicates; it is a refusal to model them at all. §9 also states what is
+now true and what is not: **the machinery exists and no shipped duty uses it**
+(`test_no_shipped_pack_uses_either_open_texture_construct`), because which statutory predicate
+becomes the first `undetermined` or `graded` one is a legal reading and not an engineering decision.
+
+Two questions stand between the machinery and a shipped duty, and neither is code:
+
+- **Which clause, and which reading.** A predicate belongs in `undetermined()` when its application
+  to facts is settled by an institution — and the pack must then be able to *name* that institution
+  from the retrieval record, on the same discipline `docs/legal-sources.md` already imposes on a
+  quotation. It belongs in `degree()` when the predicate is vague rather than merely unsettled, which
+  is a claim about the clause and not about the evidence.
+- **What a degree would have to come from.** A `Grading` names an authority, a scale and a method,
+  and nothing in this repository supplies one. A shipped graded duty needs a real assessment behind
+  it or it is a fixture with a statute's name on it.
+
+**Measurable outcome.** One shipped requirement whose `formalism` is `undetermined` or `graded`,
+with: its clause and the words of its open-textured predicate quoted in `verbatim_text`; the
+authority named from a source `docs/legal-sources.md` retrieved, for the `undetermined` case; a
+`docs/refinement.md` row whose fourth column names what is *still* left out after the construct is
+used, since neither construct closes a gap by itself; and — for the `graded` case — a `[grading]`
+algebra declared, with a paragraph in the pack description saying why that lattice and not another,
+on the same terms this repository demands of an invented threshold.
+`test_no_shipped_pack_uses_either_open_texture_construct` is the check that fails today and would
+have to be rewritten, not deleted, when this closes: it is what keeps the machinery from acquiring a
+duty by accident.
+
+**Depends on.** A legal reading, which is the captain's, and an assessment for the graded case. It
+deliberately does **not** depend on any further engine work: §9 states that neither fragment reaches
+an engine and that no rung of the lattice means *graded*, and a duty landing on either construct is
+reported *not evaluated* with its finding beside it. The pressure it put on the evidence scale — a
+graded reading having no place on the strength lattice, alongside the counterfactual fragment's two
+rungs and the certificate engine's single one — **has since been designed**, once, as the evidence
+*basis* dimension of `docs/semantics.md` §10 rather than as more links in the chain. A shipped
+graded duty inherits the `assessment` basis and is counted apart from a duty an engine failed to
+settle; nothing about it now waits on that design.
 
 ---
 

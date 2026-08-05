@@ -37,12 +37,15 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from typing import Any, cast
 
+from reasonsmith.artifacts import RECOUNTED_REASONS
+from reasonsmith.manyvalued import DEGREE_SOURCE_FIELDS
 from reasonsmith.rulelang import (
     STATE_FRAGMENTS,
     UnsupportedConstructError,
     counterfactual_atom,
     is_present,
     parse_property,
+    undetermined_atoms,
 )
 from reasonsmith.spec import Pack, Requirement, normalize_domains, normalize_scope
 from reasonsmith.sut import (
@@ -51,7 +54,7 @@ from reasonsmith.sut import (
     _validate_capability_collection,
     read_time_domain,
 )
-from reasonsmith.verdict import Strength, Verdict
+from reasonsmith.verdict import EvidenceBasis, Strength, Verdict
 
 LIMITS = (
     "This report is not a compliance guarantee and is not legal advice. It assesses system "
@@ -72,8 +75,41 @@ LIMITS = (
     "no regulation, and a duty declaring no domain reaches every system it is run against."
 )
 
-#: Formalisms this build can actually evaluate.
-SUPPORTED_FORMALISMS = ("record", "temporal", "logical", "counterfactual")
+#: Formalisms this build can actually evaluate. `undetermined` and `graded` are on this list and
+#: neither reaches an engine: what this build does with one is refuse it in a way a reader can act
+#: on, which is an evaluation of the duty and not the absence of one.
+SUPPORTED_FORMALISMS = (
+    "record",
+    "temporal",
+    "logical",
+    "counterfactual",
+    "undetermined",
+    "graded",
+)
+
+#: Where a result records that the duty rests on an open-textured predicate no engine here settles,
+#: and who would settle it. Both halves are the finding: a `not evaluated` that does not name the
+#: authority is the ordinary un-evaluated result this construct exists to stop being the answer.
+OPEN_TEXTURE_KEY = "open_texture"
+
+#: The fields that key carries, per atom. Named here for the reason `PROBE_BUDGET_FIELDS` is: a
+#: rendering asks the result rather than parsing a sentence that is free to be reworded.
+OPEN_TEXTURE_FIELDS = ("signal", "predicate", "authority")
+
+#: Where a result carries a truth degree measured over a declared algebra against a declared
+#: grading. Everything about this key is a refusal in the shape of a data structure, and
+#: `RequirementResult._validate_truth_degree` is where each one bites:
+#:
+#: - the degree may not travel without `algebra` and without all of `DEGREE_SOURCE_FIELDS`, which is
+#:   constraint B of this design — a degree with no account of who fixed the scale is a figure;
+#: - a result carrying one may not carry a strength, because a truth degree is a **distinct evidence
+#:   basis and not a rescaled verdict**: nothing here turns `0.7` into seventy percent of a verdict,
+#:   and no rung of the lattice means "graded".
+TRUTH_DEGREE_KEY = "truth_degree"
+
+#: The fields that key carries. `atoms` is every graded atom's own degree, so a reader sees what the
+#: algebra combined rather than only what it produced.
+TRUTH_DEGREE_FIELDS = ("degree", "algebra", "atoms", "source")
 
 #: Where a probed result carries the search that produced it, and the fields that search must
 #: name. A probed verdict is a statement about a bounded search — how many inputs were replayed,
@@ -105,6 +141,13 @@ ENGINE_PLUGIN_KEY = "engine_plugin"
 #: than spelled twice because a rendering reads it: a reader who is shown "the reasons stated were
 #: not all the reasons" is being shown this measurement and nothing else.
 CERTIFICATES_KEY = "certificates"
+
+#: Where a result measured against an inference artefact records whether the reason set it was
+#: measured against was *enumerated* from a model encoding or *recounted* by the system. False caps
+#: the result at `Strength.RECOUNTED`, and `__post_init__` refuses one that claims higher — the
+#: structural form of the rule `docs/semantics.md` §3 used to state in prose and gate a second
+#: artefact family on. See `artifacts.RECOUNTED_REASONS`.
+EXACT_REASON_SET_KEY = "reason_set_is_exact"
 
 #: The version of the `--json` envelope's *shape*, carried as `schema_version` on every
 #: `ConformanceReport.to_dict()`. It is a single integer and it is not the package version:
@@ -159,6 +202,16 @@ class RequirementResult:
     about (e.g. 'consumer-credit'), empty meaning it is not domain-limited. All three are
     carried through from the requirement so a reader of a single result never has to go back to
     the pack to know what kind of duty it is.
+
+    `basis` is the fourth such fact and the second coordinate of the evidence claim: what kind of
+    thing this duty's evidence is *about*, as against `strength`, which says how far the claim was
+    pushed. It is derived from the requirement by `evidence_basis` and stamped once by
+    `evaluate_requirement`, never authored in a pack and never declared by a system; the default
+    here is the behavioural basis because that is what a direct construction is — evidence about
+    the system's own executions — and the stamp is what makes a non-behavioural duty carry the
+    truth. A result may not carry a strength its basis does not admit
+    (`verdict.BASIS_RUNGS`): a counterfactual duty cannot be reported `observed` and a certificate
+    duty cannot be reported `proved`, and those are refusals rather than conventions.
     """
 
     requirement_id: str
@@ -172,6 +225,7 @@ class RequirementResult:
     binding: bool = True
     scope: str = ""
     domains: tuple[str, ...] = ()
+    basis: EvidenceBasis = EvidenceBasis.BEHAVIOURAL
 
     def __post_init__(self) -> None:
         # Every invariant below compares against the enum members, so a raw string would
@@ -183,6 +237,7 @@ class RequirementResult:
         object.__setattr__(self, "binding", bool(self.binding))
         object.__setattr__(self, "scope", str(self.scope))
         object.__setattr__(self, "domains", normalize_domains(self.domains))
+        object.__setattr__(self, "basis", EvidenceBasis.parse(self.basis))
         for name in ("signals_required", "signals_missing"):
             object.__setattr__(self, name, self._signal_names(name))
 
@@ -212,10 +267,27 @@ class RequirementResult:
         # repository never audited must not be able to make the tool claim more than it has.
         self._validate_plugin_claim()
 
+        # And an artefact whose reason set the system recounted cannot report above `recounted`,
+        # for the same reason again: the probe is the same probe, and what it was run against is
+        # not the same evidence.
+        self._validate_reason_set()
+
         # A vacuous-trigger result carries the trigger that never fired and the domain that was
         # searched. Refused here for the reason the probe budget is: those two are the whole of
         # the finding, and a result that cannot name them is not one a rendering can report.
         self._validate_vacuous_trigger()
+
+        # An open-textured result names its authority, and a graded one names the algebra and the
+        # source that fixed the scale. Refused here rather than at render time for the reason the
+        # probe budget is: it is what makes it impossible to publish either in any format without
+        # what a reader needs to read it.
+        self._validate_open_texture()
+        self._validate_truth_degree()
+
+        # The two coordinates have to agree. A rung this duty's basis does not admit is a claim
+        # that some engine reached it, and for each of the three non-behavioural bases there is no
+        # such engine and no such evidence — see `verdict.EvidenceBasis`.
+        self._validate_basis()
 
         unattainable = self.strength == Strength.UNATTAINABLE
         if unattainable and self.verdict != Verdict.INCONCLUSIVE:
@@ -265,8 +337,29 @@ class RequirementResult:
             )
         return names
 
+    def _validate_reason_set(self) -> None:
+        """Refuse a verdict claiming more than a recounted reason set can carry.
+
+        The rule `docs/semantics.md` §3 stated in prose for as long as the ground program was the
+        only family: a certificate over a reason set the system recounted claims strictly less than
+        one over a model encoding, and must not report at the same strength. The key is absent on
+        every result that is not measured against an inference artefact, so this refuses nothing
+        else.
+        """
+        exact = self.details.get(EXACT_REASON_SET_KEY)
+        if exact is None or exact:
+            return
+        if self.strength is not None and self.strength > Strength.RECOUNTED:
+            raise ValueError(
+                f"{self.requirement_id}: a result measured against a reason set the system "
+                f"recounted cannot be reported {self.strength}; {Strength.RECOUNTED} is the "
+                f"ceiling for it — {RECOUNTED_REASONS}"
+            )
+
     def _validate_probe_budget(self) -> None:
-        if self.strength != Strength.PROBED:
+        # `recounted` is a bounded search exactly as `probed` is — the same deletion probe over a
+        # different reason set — so it owes a reader the same budget.
+        if self.strength not in (Strength.PROBED, Strength.RECOUNTED):
             return
         budget = self.details.get(PROBE_BUDGET_KEY)
         if not isinstance(budget, Mapping):
@@ -309,6 +402,114 @@ class RequirementResult:
                 f"{self.requirement_id}: a duty whose trigger fired nowhere cannot carry "
                 f"evidence strength {self.strength}; nothing was learned about the system"
             )
+
+    def _validate_open_texture(self) -> None:
+        """Refuse an open-texture result that does not name every atom's authority."""
+        atoms = self.details.get(OPEN_TEXTURE_KEY)
+        if atoms is None:
+            return
+        if not isinstance(atoms, (list, tuple)) or not atoms:
+            raise ValueError(
+                f"{self.requirement_id}: details[{OPEN_TEXTURE_KEY!r}] must be a non-empty list of "
+                f"the open-textured atoms this duty rests on; got {atoms!r}"
+            )
+        for atom in atoms:
+            missing = (
+                list(OPEN_TEXTURE_FIELDS)
+                if not isinstance(atom, Mapping)
+                else [f for f in OPEN_TEXTURE_FIELDS if not str(atom.get(f, "")).strip()]
+            )
+            if missing:
+                raise ValueError(
+                    f"{self.requirement_id}: every entry of details[{OPEN_TEXTURE_KEY!r}] must "
+                    f"name {', '.join(OPEN_TEXTURE_FIELDS)}; {atom!r} is missing "
+                    f"{', '.join(missing)}. A predicate this tool does not settle, reported "
+                    "without saying who does, is the un-evaluated result this construct exists to "
+                    "stop being the answer"
+                )
+        if self.strength is not None:
+            raise ValueError(
+                f"{self.requirement_id}: a duty resting on a predicate no engine settles cannot "
+                f"carry evidence strength {self.strength}; nothing here applied the predicate"
+            )
+
+    def _validate_truth_degree(self) -> None:
+        """Refuse a truth degree without its algebra, its source, or with a strength beside it.
+
+        Three refusals, and each is one of this design's constraints made structural rather than
+        conventional. **No bare degree**: `algebra` and every field of `source` must be there, so no
+        rendering can print the numeral without what fixed it, because no result can exist that does
+        not carry them. **No rescaled verdict**: a result carrying a degree carries no strength, so
+        `0.7` can never be read off a rung as seventy percent of a proof. **A degree is a degree**:
+        the value lies in [0, 1] and nothing here rescales it to a percentage.
+        """
+        reading = self.details.get(TRUTH_DEGREE_KEY)
+        if reading is None:
+            return
+        if not isinstance(reading, Mapping):
+            raise ValueError(
+                f"{self.requirement_id}: details[{TRUTH_DEGREE_KEY!r}] must be a mapping naming "
+                f"{', '.join(TRUTH_DEGREE_FIELDS)}; got {reading!r}"
+            )
+        missing = [f for f in TRUTH_DEGREE_FIELDS if reading.get(f) is None]
+        if missing:
+            raise ValueError(
+                f"{self.requirement_id}: a truth degree must name "
+                f"{', '.join(TRUTH_DEGREE_FIELDS)}; missing {', '.join(missing)}"
+            )
+        source = reading["source"]
+        source_missing = (
+            list(DEGREE_SOURCE_FIELDS)
+            if not isinstance(source, Mapping)
+            else [f for f in DEGREE_SOURCE_FIELDS if not str(source.get(f, "")).strip()]
+        )
+        if source_missing:
+            raise ValueError(
+                f"{self.requirement_id}: a truth degree travels with the source that fixed its "
+                f"scale — {', '.join(DEGREE_SOURCE_FIELDS)}; missing "
+                f"{', '.join(source_missing)}. A degree a reader cannot trace to whoever assessed "
+                "it is a figure, and a degree the audited system asserted about itself is a "
+                "self-declaration wearing a lattice's clothes"
+            )
+        degree = reading["degree"]
+        if isinstance(degree, bool) or not isinstance(degree, (int, float)):
+            raise ValueError(
+                f"{self.requirement_id}: a truth degree must be a number in [0, 1], got "
+                f"{degree!r}"
+            )
+        if not 0.0 <= float(degree) <= 1.0:
+            raise ValueError(
+                f"{self.requirement_id}: a truth degree must lie in [0, 1], got {degree!r}"
+            )
+        if self.strength is not None:
+            raise ValueError(
+                f"{self.requirement_id}: a result carrying a truth degree cannot also carry "
+                f"evidence strength {self.strength}. A degree is a distinct evidence basis and "
+                "never a rescaled verdict — no rung of the lattice means 'graded', and a reader "
+                "handed both would read the number as a fraction of the rung"
+            )
+
+    def _validate_basis(self) -> None:
+        """Refuse a result whose strength is a rung its evidence basis does not admit.
+
+        Three sentences that were prose in three separate module docstrings become one refusal
+        here. A `relational` duty is a property of a pair of executions, so no trace observes one;
+        an `artifact` duty is measured against the inference behind a decision, so no exposure of
+        the system proves one; an `assessment` duty rests on a predicate an authority applies, so
+        no rung of the lattice ranks one at all. Each of the three is a fact about the *kind* of
+        claim, which is why it is checked against the basis and not inside the engine that would
+        otherwise have to remember it.
+        """
+        if self.strength is None or self.basis.admits(self.strength):
+            return
+        admitted = ", ".join(s.value for s in self.basis.rungs)
+        raise ValueError(
+            f"{self.requirement_id}: a result on the {self.basis} basis cannot be reported "
+            f"{self.strength}; that basis admits {admitted} and no other rung. The strength "
+            "lattice ranks how far a claim was pushed and the basis says what the claim was "
+            "about, so a rung outside the basis is a claim that evidence of a kind nothing here "
+            "produces was produced — see docs/semantics.md §10."
+        )
 
     def _validate_plugin_claim(self) -> None:
         """Refuse a plug-in result claiming a strength above the ceiling the plug-in declared."""
@@ -355,6 +556,7 @@ class RequirementResult:
             "binding": self.binding,
             "scope": self.scope,
             "domains": list(self.domains),
+            "basis": self.basis.value,
         }
 
 
@@ -413,16 +615,169 @@ def not_evaluated_for_unreachable_trigger(
     )
 
 
+def not_evaluated_for_open_texture(req: Requirement) -> RequirementResult:
+    """The result for a duty resting on a predicate the law states without a sharp boundary.
+
+    Written against the result model beside `not_evaluated_for_unreachable_trigger`, and reusing the
+    same `inconclusive` at `strength=None` rather than inventing a mechanism beside it. Three
+    quarters of this already happened by accident: a duty whose predicate nobody had modelled fell
+    down whichever un-evaluated path its shape happened to take, and the report said the engine fell
+    short rather than that the *law* had not been narrowed. What the construct adds is that the pack
+    says which predicate is open-textured and **who settles it**, and the result carries both.
+
+    It is deliberately not `unattainable`: the gap is not in the system, and telling an adopter to
+    change a system because a statute uses the word *meaningful* is the wrong instruction. It is
+    deliberately not `not_applicable`: the duty reaches this system, and only its application to
+    these facts is unsettled. And it is deliberately never `satisfied` or `violated`, at any
+    strength, because nothing here applied the predicate at all.
+    """
+    atoms = [
+        {"signal": signal, "predicate": predicate, "authority": authority}
+        for signal, predicate, authority in undetermined_atoms(parse_property(req.spec))
+    ]
+    named = "; ".join(
+        f"whether {atom['signal']} is {atom['predicate']!r} — settled by {atom['authority']}"
+        for atom in atoms
+    )
+    plural = "" if len(atoms) == 1 else "s"
+    return RequirementResult(
+        requirement_id=req.id,
+        source_clause=f"{req.source_document} {req.article_clause}",
+        verdict=Verdict.INCONCLUSIVE,
+        strength=None,
+        signals_required=tuple(req.requires),
+        evidence_summary=(
+            f"Not evaluated: this duty turns on {len(atoms)} predicate{plural} the law states "
+            f"without a sharp boundary, and no engine here settles {'it' if not plural else 'them'}"
+            f" — {named}. The system can emit the signal{plural} the predicate{plural} "
+            f"{'is' if not plural else 'are'} about, so this is not a gap in the system; it is a "
+            "question this tool refuses to answer in place of the named authority. Nothing here "
+            "says the duty is met, and nothing here says it is breached."
+        ),
+        details={OPEN_TEXTURE_KEY: atoms},
+        binding=req.binding,
+        scope=req.scope,
+    )
+
+
+def _graded_result(
+    req: Requirement, degree: float, atoms: dict[str, float], grading: Any
+) -> RequirementResult:
+    """The result carrying a truth degree, and no verdict derived from it.
+
+    The verdict is `inconclusive` at `strength=None` — this package's *not evaluated* — and that is
+    the design and not a stub. Turning a degree into `satisfied` needs a cut-off, no statute states
+    one for *sufficiently detailed*, and a cut-off written into a shipped pack would be the pack
+    author's number presented as the regulation's: the objection `docs/authoring-packs.md` already
+    makes about an invented bound, arriving on a lattice instead of in a `spec`. So the machinery
+    measures, the measurement travels with its algebra and its source, and what discharges the duty
+    is a legal reading this tool does not make.
+    """
+    return RequirementResult(
+        requirement_id=req.id,
+        source_clause=f"{req.source_document} {req.article_clause}",
+        verdict=Verdict.INCONCLUSIVE,
+        strength=None,
+        signals_required=tuple(req.requires),
+        evidence_summary=(
+            f"Not evaluated as satisfied or violated, and measured instead: this duty turns on a "
+            f"predicate with no sharp boundary, and it holds to degree {degree} over the "
+            f"{req.algebra} algebra, on degrees assessed by {grading.authority}. That number is a "
+            "measurement and not a verdict: no threshold on it is stated by the clause, and this "
+            "tool does not invent one. Read it with the scale and method that fixed it."
+        ),
+        details={
+            TRUTH_DEGREE_KEY: {
+                "degree": degree,
+                "algebra": req.algebra,
+                "atoms": dict(atoms),
+                "source": grading.source(),
+            }
+        },
+        binding=req.binding,
+        scope=req.scope,
+    )
+
+
+def _not_evaluated(req: Requirement, summary: str, details: dict[str, Any] | None = None):
+    """The plain not-evaluated result: the duty reaches the system and nothing was established."""
+    return RequirementResult(
+        requirement_id=req.id,
+        source_clause=f"{req.source_document} {req.article_clause}",
+        verdict=Verdict.INCONCLUSIVE,
+        strength=None,
+        signals_required=tuple(req.requires),
+        evidence_summary=summary,
+        details=dict(details or {}),
+        binding=req.binding,
+        scope=req.scope,
+    )
+
+
+def evaluate_graded_requirement(
+    req: Requirement,
+    records: list[dict[str, Any]],
+    grading: Any | None,
+) -> RequirementResult:
+    """Measure a graded duty's truth degree, or say exactly why it was not measured.
+
+    Four ways this returns without a degree, and none of them is a low one. No grading supplied; a
+    grading that scores no degree for an atom the property reads; an empty trace, whose infimum
+    would be the top of the lattice; and a formula putting a graded atom somewhere the reading has
+    no meaning for it. Each is *not evaluated* naming what was missing — a predicate nobody assessed
+    is not a predicate assessed as wholly false, and answering `0.0` for any of them would let this
+    machinery report a breach it measured nothing for.
+    """
+    from reasonsmith.manyvalued import (
+        algebra_named,
+        atom_key,
+        degree_over_trace,
+    )
+    from reasonsmith.rulelang import degree_atoms
+
+    if grading is None:
+        return _not_evaluated(
+            req,
+            "Not evaluated: this duty is graded, and no grading was supplied to this run. A truth "
+            "degree comes from an assessment made outside this tool and is never read off the "
+            "system or its log, so without one there is nothing to measure. Pass a "
+            "reasonsmith.manyvalued.Grading to check_conformance — see docs/semantics.md §9.",
+        )
+    if not records:
+        return _not_evaluated(
+            req,
+            "Not evaluated: this duty is graded over the decisions of the trace, and the trace is "
+            "empty. The degree over a trace is the infimum of its per-decision degrees, and the "
+            "infimum of nothing is the top of the lattice — having observed nothing is not "
+            "evidence graded 1.0.",
+        )
+
+    node = parse_property(req.spec)
+    try:
+        algebra = algebra_named(req.algebra)
+        degree = degree_over_trace(node, records, algebra, grading)
+    except (UnsupportedConstructError, ValueError) as exc:
+        return _not_evaluated(req, f"Not evaluated: {exc}.")
+
+    atoms = {
+        atom_key(signal, predicate): grading.degree(signal, predicate)
+        for signal, predicate in degree_atoms(node)
+    }
+    return _graded_result(req, degree, atoms, grading)
+
+
 #: The report categories, in the order they are rendered. Every result falls in exactly one of
 #: them, which is what lets the counts reconcile against a total instead of merely summing to
 #: something plausible.
 _CATEGORY_LABELS = (
     ("proved", "proved"),
     ("probed", "probed"),
+    ("recounted", "recounted"),
     ("observed", "observed"),
     ("violated", "violated"),
     ("inconclusive", "inconclusive"),
     ("not_evaluated", "not evaluated"),
+    ("on_an_assessment", "on an assessment"),
     ("unattainable", "unattainable"),
     ("not_applicable", "not applicable"),
 )
@@ -445,6 +800,7 @@ def _category_counts(
     counts = {
         "proved": satisfied_at(Strength.PROVED),
         "probed": satisfied_at(Strength.PROBED),
+        "recounted": satisfied_at(Strength.RECOUNTED),
         "observed": satisfied_at(Strength.OBSERVED),
         "violated": sum(1 for r in results if r.verdict == Verdict.VIOLATED),
         "inconclusive": sum(
@@ -454,8 +810,25 @@ def _category_counts(
             and r.evaluated
             and r.strength != Strength.UNATTAINABLE
         ),
+        # `not_evaluated` is a gap in the audit — an empty trace, a solver timeout, an unmodelled
+        # construct — and it tells a reader to fix the evidence or the specification. A duty on the
+        # `assessment` basis reaching the same `strength=None` is not that: nothing fell short,
+        # because no rung of this lattice was ever going to rank a predicate an authority applies.
+        # Counting the two together made a measured truth degree and a solver timeout render as one
+        # number in the headline, which is the cost `docs/semantics.md` §9 named and §10 removes.
         "not_evaluated": sum(
-            1 for r in results if not r.evaluated and r.verdict != Verdict.NOT_APPLICABLE
+            1
+            for r in results
+            if not r.evaluated
+            and r.verdict != Verdict.NOT_APPLICABLE
+            and r.basis != EvidenceBasis.ASSESSMENT
+        ),
+        "on_an_assessment": sum(
+            1
+            for r in results
+            if not r.evaluated
+            and r.verdict != Verdict.NOT_APPLICABLE
+            and r.basis == EvidenceBasis.ASSESSMENT
         ),
         "unattainable": sum(1 for r in results if r.strength == Strength.UNATTAINABLE),
         "not_applicable": sum(1 for r in results if r.verdict == Verdict.NOT_APPLICABLE),
@@ -555,9 +928,12 @@ class ConformanceReport:
         Interpretive results are reported under the `interpretive_` keys, never dropped.
 
         Each half is an exact partition of its own total, so `binding_total` and
-        `interpretive_total` each reconcile against the eight categories below and sum to
+        `interpretive_total` each reconcile against the nine categories below and sum to
         `total`. `proved`/`probed`/`observed` count *satisfied* requirements at that strength,
         so a requirement is never counted as evidence for a property it does not have.
+        `on_an_assessment` is the one category that is not a rung and not a verdict: it counts
+        duties on the `assessment` evidence basis, which the strength lattice does not rank at all
+        (`verdict.EvidenceBasis`, `docs/semantics.md` §10).
         """
         for result in self.results:
             result._validate_probe_budget()
@@ -702,6 +1078,39 @@ class ConformanceReport:
     def to_json(self, indent: int | None = None) -> str:
         """JSON representation following house pattern."""
         return json.dumps(self.to_dict(), indent=indent, default=str)
+
+
+def evidence_basis(req: Requirement) -> EvidenceBasis:
+    """What kind of thing this duty's evidence is about, derived from the duty alone.
+
+    A function of the *requirement* and of nothing else — not of the system, not of which engine
+    happened to answer, and never of a field a pack author writes. That is what makes the basis a
+    fact a reader can rely on before a run: it says which rungs are reachable for this duty at all,
+    so a ceiling reads as the duty's rather than as something the system failed to expose.
+
+    The three tests below are the three branches of `_engine_ladder`, in `_engine_ladder`'s own
+    order, and they are the whole of the derivation:
+
+    - a duty gating on `engines.certificate.DELETED_REASON_COUNT` is measured against the inference
+      artefact behind a decision — the `artifact` basis, one rung;
+    - a `counterfactual` duty is a property of a pair of executions — the `relational` basis, no
+      trace rung;
+    - an `undetermined` or `graded` duty rests on a predicate an authority applies rather than on
+      anything measured from the system — the `assessment` basis, no rung at all.
+
+    Everything else is a property of the system's own executions, one at a time, and reaches every
+    rung the system's exposed surface allows. `test_the_basis_admits_exactly_the_rungs_the_ladder_
+    can_reach` is what keeps this function and that one from drifting apart.
+    """
+    from reasonsmith.engines.certificate import DELETED_REASON_COUNT
+
+    if DELETED_REASON_COUNT in req.requires:
+        return EvidenceBasis.ARTIFACT
+    if req.formalism == "counterfactual":
+        return EvidenceBasis.RELATIONAL
+    if req.formalism in ("undetermined", "graded"):
+        return EvidenceBasis.ASSESSMENT
+    return EvidenceBasis.BEHAVIOURAL
 
 
 def analyze_unattainable(req: Requirement, sut: SystemUnderTest) -> tuple[bool, tuple[str, ...]]:
@@ -936,6 +1345,7 @@ def evaluate_requirement(
     records: list[dict[str, Any]] | None = None,
     system_scope: str | None = None,
     system_domains: Iterable[str] | None = None,
+    grading: Any | None = None,
     *,
     _resources: _EvaluationResources | None = None,
 ) -> RequirementResult:
@@ -957,12 +1367,17 @@ def evaluate_requirement(
     re-running the system once per requirement.
     """
     result = _evaluate_requirement(
-        req, sut, records, system_scope, system_domains, _resources=_resources
+        req, sut, records, system_scope, system_domains, grading, _resources=_resources
     )
     # The duty's own domain limit is stamped once, here, rather than threaded through four
     # engines: an engine has nothing to say about which systems a duty reaches, and a rung that
     # forgot to carry it would render a domain-limited duty as one that reaches everything.
-    return replace(result, domains=req.domains)
+    #
+    # The evidence basis is stamped in the same place and for the same reason. It is a fact about
+    # the duty rather than about the run — which is why it is derived here from `req` alone and not
+    # asked of whichever engine answered — and `replace` re-runs `__post_init__`, so a result
+    # carrying a rung its basis does not admit is refused at the stamp rather than rendered.
+    return replace(result, domains=req.domains, basis=evidence_basis(req))
 
 
 def _evaluate_requirement(
@@ -971,6 +1386,7 @@ def _evaluate_requirement(
     records: list[dict[str, Any]] | None,
     system_scope: str | None,
     system_domains: Iterable[str] | None,
+    grading: Any | None,
     *,
     _resources: _EvaluationResources | None,
 ) -> RequirementResult:
@@ -1006,6 +1422,19 @@ def _evaluate_requirement(
             ),
             binding=req.binding,
             scope=req.scope,
+        )
+
+    # The two open-texture fragments return here, before the ladder, and they return *after* the
+    # capability gate above rather than before it. That order is the whole of the guarantee that a
+    # graded semantics does not make every duty answerable: a system that can show nothing is
+    # `unattainable`, exactly as it was, and never a low degree. No engine reaches either fragment,
+    # so `_engine_ladder` would have nothing to append — and a rung that reported one would be a
+    # rung claiming to have settled a predicate this tool refuses to settle.
+    if req.formalism == "undetermined":
+        return not_evaluated_for_open_texture(req)
+    if req.formalism == "graded":
+        return evaluate_graded_requirement(
+            req, records if records is not None else resources.trace(), grading
         )
 
     candidates = _engine_ladder(req, sut, records, resources)
@@ -1282,6 +1711,7 @@ def check_conformance(
     system_name: str = "SUT",
     system_scope: str | None = None,
     system_domains: Iterable[str] | None = None,
+    grading: Any | None = None,
 ) -> ConformanceReport:
     """Check conformance of a SUT against all requirements in a Pack.
 
@@ -1306,6 +1736,7 @@ def check_conformance(
             sut,
             system_scope=system_scope,
             system_domains=sys_domains,
+            grading=grading,
             _resources=resources,
         )
         for req in pack.requirements

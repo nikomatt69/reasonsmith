@@ -10,6 +10,164 @@ releases before it predate the file and are not reconstructed here.
 
 ### Added
 
+- **The strength lattice gains a rung, and the inference-artefact protocol gains a second family.**
+  `Strength.RECOUNTED` sits between `observed` and `probed` and is the rung a reason-adequacy verdict
+  reaches when the reason set the deletion probe ran over is one the *system recounted about its own
+  inference*, rather than one enumerated from a model encoding. That is the **faithfulness** question
+  as the literature poses it (Jacovi & Goldberg, ACL 2020), measured the way that literature measures
+  it — by erasure (DeYoung et al., *ERASER*, ACL 2020) — on evidence a self-report demonstrably fails
+  to be (Turpin, Michael, Perez & Bowman, NeurIPS 2023). It is a rung on the `artifact` row and not a
+  fifth basis, by the test [`docs/semantics.md`](docs/semantics.md) §10 now states: evidence about a
+  different object is a basis, evidence about the same object less deeply is a rung. The rule that
+  gated the widening — a certificate over a reason trace claims strictly less than one over a ground
+  program and must not report at the same strength — was previously prose in §3 and is now a refusal
+  `RequirementResult.__post_init__` fires. A family declares `reasons_are_exact` and **silence claims
+  the weaker rung**, the opposite default from `monotone` and for a stated reason.
+  `artifacts/reason_trace.py` is the second family: the reasons a system recounts for one decision,
+  each tested by suppressing its facts and re-running the system. It widens what can be certified from
+  systems that expose a ground program to systems that recount their reasons and can be re-run with a
+  fact withheld — it does **not** reach a system that is only a log, so the README's auditors blocker
+  is narrowed and not closed. No shipped example system uses the new family, and **no shipped verdict
+  moved**; the generated documents change by one sentence, the one that words the `artifact` basis.
+
+- **The property language has a formal semantics, and it is a checked one.**
+  `validate-pack --analyse` asks whether a requirement set is jointly satisfiable, whether one duty
+  subsumes another, and whether a subformula is replaceable without changing a verdict — relations
+  between formulas of a language, meaningful only once the language is defined. It existed as a
+  whitelist in `rulelang.py` and four separate translations out of it.
+  [`docs/language.md`](docs/language.md) defines it: an EBNF grammar checked against the parser
+  rather than written beside it, and the denotation the captain's decision record settled —
+  `⟦·⟧_{M,A} : Spec → (𝒫(Trace_M) ⇀ A)`, parameterised by the structure `M` (a finite trace, or an
+  input space) and the algebra `A` (`𝔹` as a degenerate instance of a residuated lattice, not a
+  separate system), over sets of traces uniformly so that the counterfactual atom is typed as the
+  2-safety property it is. The four encodings — the `rulelang` interpreter, the Z3 encoding, the
+  rtamt rendering and the LTLf mapping — are recast as implementations of that one denotation, with
+  the differential tests that already existed named as their conformance evidence. Three things the
+  code does that read as policy are now consequences of the definition: a `degree()` atom under a
+  temporal operator is refused because there is no many-valued reading of a temporal operator; an
+  empty trace has no value because the tool refuses the lattice top the mathematics would give it;
+  and unawareness is `unattainable` rather than `satisfied` because the relational atom quantifies
+  over pairs of admissible inputs and an unaware system admits none. `tests/test_language_definition.py`
+  generates from the grammar, refuses every refusal the document names by id, and holds the
+  document's claim-to-test map to the suite. **Nothing in the language changed and no shipped
+  verdict moved.**
+
+- **Reported: four shapes on which the trace-rung implementation and the definition disagree.**
+  Writing the denotation down found three, beside one already documented, all at `observed` and all
+  **latent** — no shipped pack writes any of them, and a test now keeps that true. rtamt's lexer has
+  no `%` and ANTLR error-recovers by dropping the token without raising, so the monitor answers
+  about a formula nobody wrote; rtamt left-associates a chained comparison over robustness values,
+  where the language and the Z3 encoding read it as a conjunction; and rtamt's `iff` robustness is
+  negative whenever the two sides' margins differ, so an equivalence between two false operands is
+  reported violated. The fourth is the known exact-tie boundary. Each is reported rather than fixed
+  — which side moves is a decision about an engine's contract — and each is pinned twice, excluded
+  by name from the new conformance test and asserted to still diverge, so neither a silent addition
+  nor a landed fix leaves the list stale. See `docs/language.md` §4.
+
+- **Equivalence became a connective the graded fragment can read, instead of a comparison the
+  author never wrote.** `preprocess_spec` rewrote `φ <=> ψ` into `(φ) == (ψ)` textually, before the
+  Python parse. Over the Booleans that is sound — equivalence *is* equality of truth values — but
+  over the residuated lattices of §9 it is not, and because the rewriter had already destroyed the
+  distinction by the time anything checked, a graded `<=>` was refused as a *threshold*, naming a
+  construct the author never typed. `implies` was spared only by being spelled as a call rather
+  than as an arrow: an accident of text substitution, not a decision. The rewriter now emits a
+  distinct `Iff(φ, ψ)` node on the same footing `Implies(φ, ψ)` already had. The two-valued
+  evaluator reads it as equality of truth values, so every existing spec means exactly what it
+  meant — held to the truth table in the interpreter and in the Z3 encoding rather than by eyeball.
+  The graded evaluator reads it over `Algebra.biresiduum`, `(φ → ψ) ⊗ (ψ → φ)`, derived from the
+  residuum each algebra already stores rather than added as a fourth independent operation; under
+  Łukasiewicz that is `1 − |x − y|`. A crisp `==` the author actually wrote is still a comparison
+  and is still refused under a graded atom, naming `==`. This is a prerequisite for the settled
+  formal semantics — one denotation parameterised by the algebra, with `𝔹` as the two-element
+  Boolean algebra rather than a separate system — which obliges every connective to have a reading
+  in the algebra, and equivalence had none because it was not a connective by the time anything
+  looked. **No shipped pack uses either spelling and no shipped verdict changed.**
+
+- **The evidence scale gained a second coordinate, and the strength lattice did not move.**
+  `unattainable < observed < probed < proved` is a chain, and three shipped situations were not on
+  that axis: a `counterfactual` duty is a property of a *pair* of executions and so has no trace
+  rung, the certificate duty is measured against an inference artefact and so has a ladder of
+  exactly one, and a graded duty (§9) was `inconclusive` at `strength=None` and therefore
+  indistinguishable, in the counts and in the headline, from a duty an engine merely failed to
+  settle. `verdict.EvidenceBasis` is the dimension beside the chain: `behavioural`, `relational`,
+  `artifact`, `assessment` — a trace property, a 2-safety property, an abductive explanation over a
+  model encoding, and a truth degree over a residuated lattice, each named after published work
+  rather than after this repository (`docs/semantics.md` §10 carries the citations). Four things are
+  structural rather than conventional. **A basis is a kind and never a rank**: the members carry no
+  order and comparing two of them, or one against a `Strength`, raises rather than answering.
+  **A result cannot carry a rung its basis does not admit**, so a counterfactual duty cannot be
+  reported `observed` and a certificate duty cannot be reported `proved` — three sentences that
+  lived in three module docstrings became one refusal in `RequirementResult.__post_init__`.
+  **The basis is derived from the duty and never declared**: a function of the requirement alone,
+  so no pack field and no adapter can widen what a duty may claim. **No rendering draws a basis as
+  a rung**: `render.basis_sentence` is the only place any surface words one, on the discipline
+  `render.degree_sentence` already carries, and the affected-individual projection is shown no
+  basis at all. What moved in the output: the text report and HTML dossier gained one sentence per
+  non-behavioural duty naming the rungs it cannot reach and why, the dossier's strength-lattice
+  track now draws only those rungs rather than showing a system as one exposure away from a rung
+  nothing can reach, the counts gained `on_an_assessment` split out of `not evaluated`, and every
+  JSON result gained a `basis` key (an addition, so `JSON_SCHEMA_VERSION` did not move). **No
+  shipped verdict and no shipped strength changed.**
+
+- **Machinery for open-textured predicates — the words the law states without a sharp boundary —
+  and no shipped duty that uses it.** Twenty-one of twenty-nine shipped requirements are presence
+  checks, and the fourth column of `docs/refinement.md` says the same thing row after row:
+  *meaningful*, *sufficiently detailed*, *adequate*, *appropriate* were not modelled. Two new
+  fragments answer different halves of that. `undetermined(signal, "predicate", "authority")` is a
+  predicate **no engine settles**, reported *not evaluated* and naming who resolves it, reusing the
+  path `not_evaluated_for_unreachable_trigger` established rather than a mechanism beside it — one
+  such atom leaves the whole formula unsettled, so its presence conjuncts are no longer answered and
+  reported as the duty's. `degree(signal, "predicate")` is a **truth degree**, read over a residuated
+  lattice in `src/reasonsmith/manyvalued.py` — Łukasiewicz, Gödel and product, each stored with its
+  residuum and checked against the residuation law rather than asserted to satisfy it. Four
+  constraints are structural rather than conventional. **The algebra is declared**: a pack shipping a
+  graded duty without `[grading] algebra` is refused at load, naming what is missing, and the
+  declaration reaches that pack's graded requirements and no others. **The degree has a declared
+  source**: it comes from a `manyvalued.Grading` a caller passes to `check_conformance` — never from
+  the audited system, which would be the `reason_is_specific` self-declaration wearing a lattice's
+  clothes — and `RequirementResult` refuses a degree that does not carry the authority, scale and
+  method that fixed it, the shape `PROBE_BUDGET_FIELDS` already forces. **A degree is a distinct
+  evidence basis and never a rescaled verdict**: `render.degree_sentence` is the only place any
+  rendering formats one, a result carrying a degree carries no `strength`, and the
+  affected-individual projection is shown the duty as unsettled in words and never the number. **A
+  two-valued duty cannot acquire a degree**: `classify_fragment` gates it exactly as it gates the
+  counterfactual atom, and a `degree()` atom under a comparison — which is a compliance threshold,
+  the pack author's number presented as the regulation's — or under a temporal operator is a load
+  error. A graded duty is reported *not evaluated* with its degree carried beside it as a
+  measurement: turning one into `satisfied` needs a threshold no statute states, and that is a legal
+  reading this tool does not make. **The strength lattice did not move**, no engine was added, and no
+  shipped verdict changed — the two fragments are dispatched after the capability gate, so a system
+  that can show nothing is `unattainable` exactly as it was and never a low degree. `docs/semantics.md`
+  §9 is the contract, including the presentation rule; `ROADMAP.md` objective 6 is what a first
+  shipped duty would have to bring.
+
+- **`validate-pack --analyse` has a decision procedure for temporal duties, beside rtamt rather
+  than instead of it.** The analysis decided a pack's questions with Z3 over one decision record,
+  so a `temporal` spec reached it only through the `always(state property)` reduction and every
+  other shape was skipped by name — including `ecoa_reg_b_1002_9_c_2_incompleteness_notice_runs_out`,
+  a shipped binding duty written with `until` that no question the analysis asks could reach at all.
+  `src/reasonsmith/ltlf.py` now renders the whole fragment into linear temporal logic over finite
+  traces and puts satisfiability and entailment to an installed decision procedure. **It is a syntax
+  mapping and an emptiness question, on the same terms `engines/observed.to_stl` is one for rtamt:
+  no temporal semantics, automaton construction, tableau or monitor is implemented in this
+  repository.** The two backends cannot disagree, and that is the acceptance test —
+  `test_the_ltlf_backend_agrees_with_the_monitor` walks a generated corpus of traces per shipped
+  temporal duty and fails at the first one on which rtamt's robustness and the automaton's
+  acceptance part, in the shape `test_the_solvers_fold_is_the_interpreters_fold` already gives the
+  `contains()` atom. The backend is an **optional extra** (`pip install reasonsmith[ltlf]`): nothing
+  in `check`, in any engine or in any shipped example touches it, `pip install reasonsmith` stays a
+  two-command demo, and with it absent the analysis prints that it is absent rather than answering
+  from a weaker substitute. Four costs are stated in `docs/semantics.md` §8 rather than left to be
+  found: the reading is propositional so every magnitude is an opaque atom and satisfiability is
+  reported only in the affirmative; it is future-only, so a past operator is skipped by name; every
+  question is asked over a non-empty trace, because the logic admits the empty one on which every
+  `always` duty holds; and a question over the procedure's atom ceiling is refused by name rather
+  than run, which today is every *pair* of shipped temporal duties. **No three-valued finite-trace
+  verdict is computed**: the installed procedure exposes an automaton and no monitor construction
+  over it, so the Bauer/Leucker/Schallhart distinction is reported unavailable rather than
+  synthesised, and nothing on the strength lattice moved. No engine, no rung and no shipped verdict
+  changed.
+
 - **`until` and `since` in the property language, on a real duty and a recorded reversal.** Both
   are written as binary prefix calls — `until(left, right)`, `since(left, right)` — classified into
   the `temporal` fragment and rendered to rtamt's infix form by `engines/observed.to_stl`. **The

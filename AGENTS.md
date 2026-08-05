@@ -67,11 +67,22 @@ premise is now **declared rather than assumed**. `artifacts/` is reasonsmith's o
 inference artefact — what a reason-bearing artefact is, what it must expose for the probe to measure
 reasons from it, and whether its inference is monotone — and `artifacts/ground_program.py` is one
 adapter over a nesyarena `GroundProgram`, which is why neither `artifacts/__init__.py` nor
-`certificate.py` imports nesyarena any more. A second family (knowledge graph, reason trace,
-extracted rule set, decision tree) is an adapter and not a branch in the core; none is implemented,
-and one whose reasons are *extracted* rather than enumerated exactly cannot take this rung until the
-strength lattice can say so — that is a captain decision, stated in `docs/semantics.md` §3 rather
-than slipped in. `engines/certificate.py` asks the declaration before it certifies and again of the
+`certificate.py` imports nesyarena any more. `artifacts/reason_trace.py` is the second
+family — the reasons a system *recounts* for one decision, each tested by suppressing its facts and
+re-running the system through a caller-supplied `answer` — and a knowledge graph, an extracted rule
+set or a decision tree after it is an adapter and not a branch in the core. A recounted reason set
+does not reach the ground program's rung: `Strength.RECOUNTED` sits between `observed` and `probed`,
+the `artifact` basis row admits it, a family declares `reasons_are_exact` and **silence claims the
+weaker rung** (the opposite default from `monotone`, because guessing monotone accuses a compliant
+system while guessing recounted only understates one), one recounted decision caps the run, and
+`RequirementResult._validate_reason_set` refuses a result claiming above
+`report.EXACT_REASON_SET_KEY`. It is a *rung* and not a fifth basis by the test §10 now states:
+different object, different basis; same object less deeply, different rung. It reaches no log-only
+system — the re-run is what makes the measurement independent of the rationale it measures — so the
+README's auditors blocker is narrowed, not closed. `docs/semantics.md` §3 (*The inference artefact*)
+is the contract and `tests/test_artifact_protocol.py` holds it.
+
+`engines/certificate.py` asks the declaration before it certifies and again of the
 measurement afterwards, and reports **not evaluated** — never violated, never satisfied, never
 downgraded to the presence check sharing the clause — for an artefact declaring non-monotone,
 declaring nothing, or declaring monotone where a deletion raised the system's answer. One refused
@@ -99,6 +110,30 @@ of formalisms an engine actually exists for — widen it when the engine lands, 
 `probed` result cannot be constructed without the search budget that produced it
 (`PROBE_BUDGET_KEY` / `PROBE_BUDGET_FIELDS`), so the bound travels with the verdict into every
 rendering instead of being a rendering convention.
+
+The lattice is a chain and it has a **second coordinate beside it**, not more links: `strength` says
+how far a claim was pushed and `verdict.EvidenceBasis` says what the claim is *about*. Four members
+— `behavioural` (a trace property), `relational` (a 2-safety property), `artifact` (an abductive
+explanation over a model encoding), `assessment` (a truth degree over a residuated lattice) — each
+named after published work, cited in `docs/semantics.md` §10, which is the contract. It exists
+because three duty shapes were off the chain and every one of them was prose in a module docstring:
+the counterfactual fragment's missing trace rung, the certificate duty's ladder of one, and a graded
+duty that counted as one an engine failed to settle. Five things must not be undone. A basis is a
+**kind and never a rank**, so the members carry no order and `<` between two of them, or one and a
+`Strength`, raises rather than answering — this is the whole reason it is a dimension and not four
+more rungs. `BASIS_RUNGS` is the rungs each basis admits and `RequirementResult.__post_init__`
+**refuses** a result outside its row, which is three docstring sentences turned into one refusal;
+widen a row only when an engine for that rung exists, and
+`test_the_basis_admits_exactly_the_rungs_the_ladder_can_reach` is the drift check against
+`_engine_ladder`. `report.evidence_basis` derives it from the **requirement alone** and
+`evaluate_requirement` stamps it once beside `domains`, so no pack field and no adapter can widen
+what a duty claims. `render.basis_sentence` is the one place any rendering words a basis — the
+discipline `render.degree_sentence` carries for a degree — and the HTML track draws only the rungs
+the basis admits, so a ceiling reads as the duty's rather than as an exposure the system withheld.
+And the lay projection is shown **no basis**, on the flag that already withholds the strength. The
+`on_an_assessment` count is split out of `not evaluated` for the same reason: those two look
+identical on a result and instruct a reader to do opposite things.
+`tests/test_evidence_basis.py` holds all of it, including the pin that no shipped verdict moved.
 
 Which engine a requirement reaches is decided by what the system exposes — for *every* fragment,
 not just `logical`, since the property-language unification. `rulelang.py` is the one property
@@ -224,6 +259,42 @@ trigger as an implication, which removed a false violation against a creditor la
 (a)(2)(ii) disclosure branch; where that antecedent fires nowhere the duty is *not evaluated*, under
 the cross-cutting rule stated above and in `docs/semantics.md` §4.
 `docs/findings-nesyarena.md` shows those ECOA duties landing on a real system.
+
+Two fragments exist for **open-textured predicates** — the words a clause states without a sharp
+boundary, which the fourth column of `docs/refinement.md` names over and over (*meaningful*,
+*sufficiently detailed*, *adequate*) — and **no shipped duty uses either**, which
+`test_no_shipped_pack_uses_either_open_texture_construct` keeps true. `undetermined(signal,
+"predicate", "authority")` is a predicate no engine settles, reported *not evaluated* naming who
+does; `degree(signal, "predicate")` is a truth degree read over a residuated lattice in
+`manyvalued.py` (Łukasiewicz, Gödel, product, each checked against the residuation law). Neither
+reaches an engine: `report._evaluate_requirement` dispatches both **after** the capability gate and
+before `_engine_ladder`, which is the whole of the guarantee that a system showing nothing is still
+`unattainable` and never a low degree. Six things must not be undone: the algebra is a **pack**
+parameter (`[grading] algebra`) refused at load when missing and handed to graded requirements only,
+so a two-valued duty cannot acquire one; the degree comes from a `manyvalued.Grading` a caller
+passes to `check_conformance` and never from the audited system, with authority/scale/method forced
+onto the result the way `PROBE_BUDGET_FIELDS` forces the search budget; `render.degree_sentence` is
+the only place any rendering formats a degree and a result carrying one carries **no strength**, so
+`0.7` can never read as a fraction of a rung — the strength lattice did not move and `graded` is not
+one; a graded atom under a comparison (a compliance threshold) or a temporal operator is a **load
+error**; an ungraded atom and an empty trace are *not evaluated*, never `0.0` and never `1.0`; and
+nothing turns a degree into a verdict, because that needs a threshold no statute states. Read
+`docs/semantics.md` §9 — which carries the presentation rule — before touching any of it, and
+`ROADMAP.md` objective 6 for what a first shipped duty would owe.
+
+The arrow rewriter is textual and runs **before** the parse, so what it emits decides what every
+later check can tell apart. `<=>` and `<->` emit `Iff(φ, ψ)`, a distinct node on the footing
+`Implies(φ, ψ)` has, and never `==`: over the Booleans the two are the same function, but over a
+residuated lattice `==` is a crisp comparison of two degrees — a threshold — so collapsing the
+connective made the graded fragment refuse an equivalence naming a construct the author never
+typed, while `implies` was spared only by being spelled as a call rather than as an arrow.
+`manyvalued.Algebra.biresiduum` is the graded reading, `(φ → ψ) ⊗ (ψ → φ)`, **derived** from the
+stored residuum for the reason `negation` is derived rather than added as a fourth operation. Three
+things must not be undone: the two-valued reading is equality of truth values and is pinned against
+the truth table in both the interpreter and the Z3 encoding, so no existing spec moved; an
+author-written `==` under a graded atom is still refused, naming `==`; and no shipped pack uses
+either spelling, so nothing generated moved. `tests/test_equivalence_connective.py` holds all of it
+and `docs/semantics.md` §2 and §9 are the contract.
 
 `requires` is a conjunctive gate, so a branch of an either/or clause must not be listed in it: the
 loader (`spec._check_spec`, via `rulelang.unconditional_signal_names`) exempts a signal read only
@@ -484,6 +555,29 @@ so **renaming or deleting a test breaks the build if that test is named there** 
 document in the same commit. It is also where a claim the code cannot support belongs: report the
 gap in the document rather than describing a tool that does not exist.
 
+`docs/language.md` is the **definition of the property language** — the grammar, and the denotation
+`⟦·⟧_{M,A} : Spec → (𝒫(Trace_M) ⇀ A)` over a structure (a finite trace, or an input space) and a
+declared algebra (`𝔹` as a degenerate residuated lattice, not a separate system), typed over sets
+of traces uniformly so the counterfactual atom is the 2-safety property it is. It is a *description*
+of `rulelang.py` and never a second front end: the parser stays CPython's plus the whitelist, and
+`tests/test_language_definition.py` generates from the grammar, refuses each refusal the document
+keys by id, and holds the claim-to-test map the way `test_docs_semantics.py` holds `semantics.md`'s.
+The four encodings are recast there as implementations of one denotation, with the existing
+differential tests — `test_the_encoder_and_the_interpreter_answer_the_same`,
+`test_the_solvers_fold_is_the_interpreters_fold`,
+`test_the_ltlf_backend_agrees_with_the_monitor` — named as their conformance evidence. Three
+refusals in the code are stated there as **consequences of the definition** rather than as policy,
+and must not be re-explained as policy: no many-valued reading of a temporal operator (hence no
+graded atom under one), no value at the empty trace (the lattice top is the vacuous `satisfied`
+rewritten as a number), and unawareness as `unattainable` (the relational atom quantifies over pairs
+of admissible inputs, and an unaware system admits none). §4 reports **four shapes where the rtamt
+rendering and the definition disagree** — `%` (ANTLR error-recovers by dropping the token and
+`spec.parse()` does not raise), a chained comparison (rtamt left-associates over robustness where
+the language conjoins), `<->` (rtamt's `iff` robustness is negative whenever the two margins
+differ), and the known exact tie. All four are latent, `MONITOR_DIVERGENCES` is the exclusion list,
+and it is pinned twice: every row must still diverge and no shipped spec may use one. Fixing one
+means deleting its row and its §4 paragraph in the same change.
+
 ## The web home and the install surface
 
 The live home is `https://reasonsmith.dev` (landing) with the conformance dossier at
@@ -539,6 +633,31 @@ score reaches only a system exposing its rules through `logic()`, which is not m
 so `MUTATION_LIMIT` travels on every analysis carrying one and **no number here may be rendered as a
 coverage claim**. Findings do not change `validate-pack`'s exit code. The measured figures live in
 RESULTS.md, *Pack Analysis Note*, never in a test.
+
+The `temporal` fragment is not a property of one record, so Z3 reached it only through the
+`always(state property)` reduction and every other shape — including the shipped `until` duty —
+was skipped by every question above. `ltlf.py` decides the whole fragment instead, and it is **a
+syntax mapping and an emptiness question and nothing else**, on the terms `engines/observed.to_stl`
+sets for rtamt: `flloat` compiles the formula to a DFA, satisfiable is "some accepting state",
+entailment is `left & !right` unsatisfiable, equivalence is both ways. **Never implement a temporal
+semantics, monitor, automaton construction or tableau here** — the previous attempt at this hand-
+wrote a monitor for operators rtamt had parsed all along. It is deliberately not under `engines/`:
+it returns no `RequirementResult`, occupies no rung, and the engine count `test_release_discipline`
+pins reads that directory. Six things must not be undone: it is an **optional extra**
+(`pip install reasonsmith[ltlf]`) and its absence is `UNAVAILABLE_NOTE` with `PackAnalysis.temporal`
+left `None`, never a weaker answer in the same words; the reading is propositional, so satisfiability
+is reported **only in the affirmative** and `LTLF_ABSTRACTION_LIMIT` rides on every answer — rtamt
+keeps every magnitude, this keeps every position, and neither replaces the other; every question
+conjoins `NON_EMPTY` (`F(true)`), because the logic admits the empty trace on which every `always`
+duty vacuously holds; a past operator (`once`, `historically`, `prev`, `since`, `rise`, `fall`) is
+LTLf-inexpressible and is skipped **by name**; `ATOM_BUDGET` is checked before the automaton is built
+because there is no wall clock anywhere in this package, and "no pair entails another" must never
+render for "no pair was decided"; and **no three-valued finite-trace verdict is computed** — the
+tool exposes no monitor construction, so the Bauer/Leucker/Schallhart distinction is reported
+unavailable rather than synthesised, and the strength lattice did not move. The acceptance test is
+`test_the_ltlf_backend_agrees_with_the_monitor`: the two backends may not disagree about any shipped
+temporal duty, in the shape `test_the_solvers_fold_is_the_interpreters_fold` gives `contains()`.
+`docs/semantics.md` §8 (*The temporal fragment, decided as a finite-trace formula*) is the contract.
 
 ## The front door
 
