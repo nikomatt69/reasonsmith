@@ -74,7 +74,7 @@ export function SettingsBody(props: { compact?: boolean }) {
       <Section heading="Leader key">
         <Row label="activate" value="ctrl+x" />
         <Row label="palette" value="ctrl+p" />
-        <Row label="shortcuts" value="h help · t theme · a audience · L limits · p packs · s systems · q quit" />
+        <Row label="shortcuts" value="h help · t theme · e settings · a audience · L limits · p packs · s systems · q quit" />
       </Section>
 
       <Section heading="Packs">
