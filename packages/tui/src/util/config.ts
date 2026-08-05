@@ -6,16 +6,19 @@ import { readFileSync } from "node:fs"
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { dirname, join } from "node:path"
+import type { Audience } from "@reasonsmith/core"
 import type { PaletteId } from "../theme/palettes.ts"
 
 export interface TuiConfig {
   readonly palette?: PaletteId
   readonly showStartup?: boolean
+  readonly audience?: Audience
 }
 
 const DEFAULT_CONFIG: TuiConfig = {
   palette: "enterprise-dark",
   showStartup: true,
+  audience: "auditor",
 }
 
 export function configPath(): string {
@@ -47,4 +50,19 @@ export async function saveConfig(config: TuiConfig): Promise<void> {
   const path = configPath()
   await mkdir(dirname(path), { recursive: true })
   await writeFile(path, `${JSON.stringify(config, null, 2)}\n`, "utf8")
+}
+
+/** Debounced save — coalesces rapid palette/audience toggles into one write. */
+let saveTimer: ReturnType<typeof setTimeout> | undefined
+let pendingConfig: TuiConfig | undefined
+
+export function saveConfigDebounced(config: TuiConfig, delayMs = 250): void {
+  pendingConfig = config
+  if (saveTimer !== undefined) clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => {
+    saveTimer = undefined
+    const snapshot = pendingConfig
+    pendingConfig = undefined
+    if (snapshot) void saveConfig(snapshot)
+  }, delayMs)
 }

@@ -1,16 +1,9 @@
 /**
- * The footer hint bar, in nikcli's shape: a key in bold, its label dimmed, `·` between.
- *
- * The hints are read out of `BINDINGS` in the keybind context rather than written here, so a key
- * that works and a key that is advertised cannot drift apart — which is the same reason nikcli's
- * `FooterHintAction` looks its keybind up instead of taking a string.
- *
- * The current audience is shown here too, because it changes what every other panel withholds, and a
- * reader who cannot see which projection they are in cannot tell a field that is absent from a field
- * that was suppressed.
+ * The footer hint bar — keybindings for the active route, capped on narrow terminals.
  */
 
-import { For, Show } from "solid-js"
+import { For, Show, createMemo } from "solid-js"
+import { useLayout } from "../context/layout.tsx"
 import { useKeybind } from "../context/keybind.tsx"
 import { useReport } from "../context/report.tsx"
 import { useRoute } from "../context/route.tsx"
@@ -19,11 +12,15 @@ import { Clickable } from "./clickable.tsx"
 
 export function FooterHints() {
   const t = useTheme()
+  const layout = useLayout()
   const keybind = useKeybind()
   const route = useRoute()
   const report = useReport()
 
-  const shown = () => keybind.bindings.filter((b) => b.on.includes(route.route().type))
+  const shown = createMemo(() => {
+    const bindings = keybind.bindings.filter((b) => b.on.includes(route.route().type))
+    return bindings.slice(0, layout.maxFooterHints())
+  })
 
   return (
     <box
@@ -37,6 +34,7 @@ export function FooterHints() {
       borderColor={t.color.borderSubtle}
       title="keys"
       titleAlignment="left"
+      minWidth={0}
     >
       <For each={shown()}>
         {(binding, index) => (
@@ -51,21 +49,25 @@ export function FooterHints() {
             <text fg={t.color.text} wrapMode="none">
               <b>{binding.keys}</b>
             </text>
-            <text fg={t.color.textMuted} wrapMode="none">
-              <i>{binding.label}</i>
-            </text>
+            <Show when={!layout.compact()}>
+              <text fg={t.color.textMuted} wrapMode="none">
+                <i>{binding.label}</i>
+              </text>
+            </Show>
             <Show when={index() < shown().length - 1}>
               <text fg={t.color.borderSubtle} wrapMode="none" content="·" />
             </Show>
           </Clickable>
         )}
       </For>
-      <box flexGrow={1} />
+      <box flexGrow={1} minWidth={0} />
       <Show when={keybind.leader()}>
         <text fg={t.color.warn} attributes={t.attr.bold} wrapMode="none" content="LEADER " />
       </Show>
       <text fg={t.color.info} wrapMode="none">
-        for: <b>{report.audience()}</b>
+        <Show when={!layout.compact()} fallback={<b>{report.audience()}</b>}>
+          for: <b>{report.audience()}</b>
+        </Show>
       </text>
     </box>
   )

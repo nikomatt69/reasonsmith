@@ -38,6 +38,7 @@ import {
   VACUOUS_TRIGGER_KEY,
   basisSentence,
 } from "@reasonsmith/core"
+import { useLayout } from "../context/layout.tsx"
 import { useReport } from "../context/report.tsx"
 import { useRoute } from "../context/route.tsx"
 import { useTheme } from "../context/theme.tsx"
@@ -52,8 +53,6 @@ import { type Color, wrap } from "../theme.ts"
  * renderable does not own the style, and the OS reclaims it on exit.
  */
 const SYNTAX_STYLE = SyntaxStyle.create()
-
-const WIDTH = 94
 
 export function Detail() {
   const t = useTheme()
@@ -207,10 +206,11 @@ function Body(props: { result: RequirementResult }) {
 
 function Field(props: { label: string; value: string; color?: Color }) {
   const t = useTheme()
+  const layout = useLayout()
   return (
     <box flexDirection="column" marginTop={1}>
       <text fg={t.color.textMuted} attributes={t.attr.dim} wrapMode="none" content={props.label} />
-      <For each={wrap(props.value, WIDTH)}>
+      <For each={wrap(props.value, layout.wrapWidth())}>
         {(line) => <text fg={props.color ?? t.color.text} wrapMode="none" content={line} />}
       </For>
     </box>
@@ -219,10 +219,11 @@ function Field(props: { label: string; value: string; color?: Color }) {
 
 function Paragraph(props: { label: string; text: string }) {
   const t = useTheme()
+  const layout = useLayout()
   return (
     <box flexDirection="column" marginTop={1}>
       <text fg={t.color.textMuted} attributes={t.attr.dim} wrapMode="none" content={props.label} />
-      <For each={wrap(props.text, WIDTH)}>
+      <For each={wrap(props.text, layout.wrapWidth())}>
         {(line) => <text fg={t.color.textSecondary} wrapMode="none" content={line} />}
       </For>
     </box>
@@ -319,6 +320,7 @@ function ProbeBudget(props: { result: RequirementResult }) {
 
 function VacuousTrigger(props: { result: RequirementResult }) {
   const t = useTheme()
+  const layout = useLayout()
   const trigger = () =>
     props.result.details[VACUOUS_TRIGGER_KEY] as Record<string, unknown> | undefined
 
@@ -337,7 +339,7 @@ function VacuousTrigger(props: { result: RequirementResult }) {
               `Nothing in ${String(v().domain)} made the antecedent ${String(v().antecedent)} ` +
                 "true, so this evidence would report every system alike satisfied and says nothing " +
                 "about this one.",
-              WIDTH,
+              layout.wrapWidth(),
             )}
           >
             {(line) => <text fg={t.color.textSecondary} wrapMode="none" content={line} />}
@@ -371,6 +373,7 @@ function TruthDegree(props: { result: RequirementResult }) {
 
 function Certificates(props: { result: RequirementResult; showDecisionIndex: boolean }) {
   const t = useTheme()
+  const layout = useLayout()
   const certs = () => {
     const raw = props.result.details[CERTIFICATES_KEY]
     return Array.isArray(raw) ? (raw as Record<string, unknown>[]) : []
@@ -417,7 +420,7 @@ function Certificates(props: { result: RequirementResult; showDecisionIndex: boo
                   </For>
                 </Show>
                 <Show when={typeof cert.attribution === "string"}>
-                  <For each={wrap(String(cert.attribution), WIDTH - 2)}>
+                  <For each={wrap(String(cert.attribution), layout.wrapWidth() - 2)}>
                     {(line) => (
                       <text
                         fg={t.color.textMuted}
@@ -449,6 +452,7 @@ function Certificates(props: { result: RequirementResult; showDecisionIndex: boo
  */
 function LayAccount() {
   const t = useTheme()
+  const layout = useLayout()
   const report = useReport()
 
   /**
@@ -486,7 +490,7 @@ function LayAccount() {
             each={wrap(
               "This run read no decision log, so there is nothing here to quote. That is not a " +
                 "finding that the decisions were sound; it is this report having seen none of them.",
-              WIDTH,
+              layout.wrapWidth(),
             )}
           >
             {(line) => <text fg={t.color.textMuted} wrapMode="none" content={line} />}
@@ -500,7 +504,7 @@ function LayAccount() {
                 <text fg={t.color.text} wrapMode="none" content={`Decision: ${account.decision}`} />
               </Show>
               <Show when={account.reason}>
-                <For each={wrap(`Reason given: ${account.reason}`, WIDTH)}>
+                <For each={wrap(`Reason given: ${account.reason}`, layout.wrapWidth())}>
                   {(line) => <text fg={t.color.text} wrapMode="none" content={line} />}
                 </For>
               </Show>
@@ -530,7 +534,7 @@ function LayAccount() {
                 "Nothing in this run measured that. No inference artefact was opened up, so this " +
                   "report does not say the reasons you were given were complete, and does not say " +
                   "they were not.",
-                WIDTH,
+                layout.wrapWidth(),
               )}
             >
               {(line) => <text fg={t.color.textMuted} wrapMode="none" content={line} />}
@@ -545,7 +549,7 @@ function LayAccount() {
                   "Every reason the decision's own inference used is one the statement names, as " +
                     "far as this run could measure. It measured only the decisions the system " +
                     "opened up.",
-                  WIDTH,
+                  layout.wrapWidth(),
                 )}
               >
                 {(line) => <text fg={t.color.textMuted} wrapMode="none" content={line} />}

@@ -1,26 +1,12 @@
 /**
  * The route context: which of the screens is showing.
  *
- * Six routes, matching nikcli's `RouteProvider` shape (a store of one tagged union, plus
- * `navigate`), reduced to what this UI has to show:
- *
- *   - `findings` — every requirement result, one row each. The landing screen.
- *   - `detail` — one result, opened from the list.
- *   - `limits` — what this report does not claim.
- *   - `packs` — the conformance packs the loader knows about.
- *   - `systems` — the systems the loader knows about.
- *   - `settings` — the panel that summarises the keybinds, the audience, the active pack and the
- *     system, the way nikcli's settings dialog summarises its surface.
- *
- * What a reader must not break: **`limits` is a route and not a footnote.** `report.limits` states
- * that the report is not a compliance guarantee and that a requirement reported without a strength
- * was not evaluated. `docs/semantics.md` §7 makes it a rule that no audience projection may drop a
- * word of it, and a rendering that buried it below a scroll would be dropping it in practice while
- * passing any test that only asks whether the string is present. So it gets a key of its own, named
- * in the footer of every screen.
+ * Clears category filter when leaving findings so status-bar chips do not look active
+ * on routes where the filter has no effect. Detail navigation requires a selection.
  */
 
 import { createSignal } from "solid-js"
+import { useReport } from "./report.tsx"
 import { createSimpleContext } from "./helper.tsx"
 
 export type Route =
@@ -34,12 +20,30 @@ export type Route =
 export const { use: useRoute, provider: RouteProvider } = createSimpleContext({
   name: "Route",
   init: () => {
+    const report = useReport()
     const [route, setRoute] = createSignal<Route>({ type: "findings" })
+
+    const navigate = (next: Route) => {
+      const previous = route()
+      if (previous.type === next.type) return
+
+      if (next.type === "detail" && report.current() === null) {
+        setRoute({ type: "findings" })
+        return
+      }
+
+      if (previous.type === "findings" && next.type !== "findings") {
+        report.clearCategoryFilter()
+      }
+
+      setRoute(next)
+    }
+
     return {
       route,
-      navigate: (next: Route) => setRoute(next),
+      navigate,
       /** Back is always to the findings list — the only screen that is a starting point. */
-      back: () => setRoute({ type: "findings" }),
+      back: () => navigate({ type: "findings" }),
     }
   },
 })

@@ -1,0 +1,45 @@
+name: tui
+
+on:
+  push:
+    paths:
+      - "packages/tui/**"
+      - "packages/terminal-control/**"
+      - "scripts/record-tui.sh"
+      - ".github/workflows/tui.yml"
+  pull_request:
+    paths:
+      - "packages/tui/**"
+      - "packages/terminal-control/**"
+      - "scripts/record-tui.sh"
+      - ".github/workflows/tui.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  tui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install
+      - run: bun run --cwd packages/tui typecheck
+      - run: bun run --cwd packages/tui test
+      - run: bun run --cwd packages/terminal-control typecheck
+      - run: bun run --cwd packages/terminal-control test
+
+  record:
+    runs-on: ubuntu-latest
+    needs: tui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: bash scripts/record-tui.sh /tmp/reasonsmith-tui-ci
+      - run: test -f /tmp/reasonsmith-tui-ci/demo.mp4 && test -f /tmp/reasonsmith-tui-ci/preview.gif

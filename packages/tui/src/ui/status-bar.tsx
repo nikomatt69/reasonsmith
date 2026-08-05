@@ -1,12 +1,16 @@
 /**
  * Enterprise status bar — verdict counters with mouse filter + ladder summary.
+ *
+ * Responsive: ladder hint and counter separators hide on narrow terminals.
  */
 
 import { For, Show } from "solid-js"
 import { CATEGORY_LABELS } from "@reasonsmith/core"
+import { useLayout } from "../context/layout.tsx"
 import { useReport } from "../context/report.tsx"
 import { useRoute } from "../context/route.tsx"
 import { useTheme } from "../context/theme.tsx"
+import { matchesCategoryFilter } from "../util/matches-category.ts"
 import { Clickable } from "./clickable.tsx"
 
 interface CounterSpec {
@@ -17,6 +21,7 @@ interface CounterSpec {
 
 export function StatusBar() {
   const t = useTheme()
+  const layout = useLayout()
   const report = useReport()
   const route = useRoute()
 
@@ -43,9 +48,12 @@ export function StatusBar() {
   const filterBy = (key: string) => {
     report.setCategoryFilter(activeFilter() === key ? null : key)
     route.navigate({ type: "findings" })
-    const index = report.results().findIndex((r) => matchesCategory(r, key))
-    if (index >= 0) report.select(index)
+    const first = report.results().find((r) => matchesCategoryFilter(r, key))
+    if (first) report.selectById(first.requirement_id)
   }
+
+  const counterLabel = (counter: CounterSpec) =>
+    layout.compact() ? String(report.report.counts[counter.key] ?? 0) : `${String(report.report.counts[counter.key] ?? 0)} ${counter.label}`
 
   return (
     <box
@@ -59,71 +67,53 @@ export function StatusBar() {
       borderStyle="single"
       borderColor={t.color.borderSubtle}
       backgroundColor={t.color.surface}
+      minWidth={0}
     >
       <text fg={t.color.info} attributes={t.attr.bold} wrapMode="none" content="ENTERPRISE" />
       <text fg={t.color.borderSubtle} wrapMode="none" content="│" />
-      <text fg={t.color.textSecondary} wrapMode="none">
-        {total()} req
-      </text>
+      <text fg={t.color.textSecondary} wrapMode="none" content={`${total()} req`} />
       <Show when={violated() > 0}>
         <Clickable cursor="pointer" onClick={() => filterBy("violated")} active={activeFilter() === "violated"}>
           <text fg={t.color.bad} attributes={t.attr.bold} wrapMode="none">
-            {violated()} violated
+            {layout.compact() ? `${violated()}!` : `${violated()} violated`}
           </text>
         </Clickable>
       </Show>
-      <text fg={t.color.borderSubtle} wrapMode="none" content="│" />
-      <For each={counters()}>
-        {(counter, index) => (
-          <>
-            <Clickable
-              cursor="pointer"
-              active={activeFilter() === counter.key}
-              onClick={() => filterBy(counter.key)}
-            >
-              <text fg={t.color[counter.colorKey]} wrapMode="none">
-                <b>{String(report.report.counts[counter.key] ?? 0)}</b>
-                {" "}
-                {counter.label}
-              </text>
-            </Clickable>
-            <Show when={index() < counters().length - 1}>
-              <text fg={t.color.borderSubtle} wrapMode="none" content="·" />
-            </Show>
-          </>
-        )}
-      </For>
-      <box flexGrow={1} />
+      <Show when={!layout.compact()}>
+        <text fg={t.color.borderSubtle} wrapMode="none" content="│" />
+      </Show>
+      <box flexDirection="row" flexGrow={1} minWidth={0} flexShrink={1} gap={1}>
+        <For each={counters().slice(0, layout.compact() ? 3 : counters().length)}>
+          {(counter, index) => (
+            <>
+              <Clickable
+                cursor="pointer"
+                active={activeFilter() === counter.key}
+                onClick={() => filterBy(counter.key)}
+              >
+                <text fg={t.color[counter.colorKey]} wrapMode="none">
+                  <b>{counterLabel(counter)}</b>
+                </text>
+              </Clickable>
+              <Show when={!layout.compact() && index() < Math.min(counters().length, 99) - 1}>
+                <text fg={t.color.borderSubtle} wrapMode="none" content="·" />
+              </Show>
+            </>
+          )}
+        </For>
+      </box>
       <Show when={activeFilter()}>
         {(key) => (
           <Clickable cursor="pointer" onClick={() => report.clearCategoryFilter()}>
-            <text fg={t.color.warn} wrapMode="none" content={`filter: ${key()} ✕`} />
+            <text fg={t.color.warn} wrapMode="none" content={`${key()} ✕`} />
           </Clickable>
         )}
       </Show>
-      <text fg={t.color.textMuted} attributes={t.attr.dim} wrapMode="none">
-        ladder: unattainable → observed → recounted → probed → proved
-      </text>
+      <Show when={layout.showStatusLadder()}>
+        <text fg={t.color.textMuted} attributes={t.attr.dim} wrapMode="none">
+          ladder: unattainable → observed → recounted → probed → proved
+        </text>
+      </Show>
     </box>
   )
-}
-
-function matchesCategory(
-  result: { verdict: string; strength: string | null; evaluated: boolean; basis: string },
-  key: string,
-): boolean {
-  if (key === "violated") return result.verdict === "violated"
-  if (key === "not_applicable") return result.verdict === "not_applicable"
-  if (key === "unattainable") return result.strength === "unattainable"
-  if (key === "not_evaluated")
-    return !result.evaluated && result.verdict !== "not_applicable" && result.basis !== "assessment"
-  if (key === "on_an_assessment")
-    return !result.evaluated && result.verdict !== "not_applicable" && result.basis === "assessment"
-  if (key === "inconclusive")
-    return (
-      result.verdict === "inconclusive" && result.evaluated && result.strength !== "unattainable"
-    )
-  if (key === "proved" || key === "probed" || key === "recounted" || key === "observed")
-    return result.verdict === "satisfied" && result.strength === key
-  return false
 }

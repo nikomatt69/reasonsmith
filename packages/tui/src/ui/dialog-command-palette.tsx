@@ -131,6 +131,10 @@ export function DialogCommandPalette() {
             setQuery(value)
             setSelected(0)
           }}
+          onSubmit={() => {
+            const cmd = filtered()[selected()]
+            if (cmd) execute(cmd)
+          }}
         />
       </box>
       <scrollbox flexGrow={1} minHeight={0} maxHeight={18} width="100%" backgroundColor={theme.color.bg}>

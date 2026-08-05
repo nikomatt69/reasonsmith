@@ -11,6 +11,7 @@ import { EnterpriseKeymapProvider } from "./context/enterprise-keymap.tsx"
 import { ExitProvider } from "./context/exit.tsx"
 import { KeybindProvider } from "./context/keybind.tsx"
 import { KVProvider } from "./context/kv.tsx"
+import { LayoutProvider } from "./context/layout.tsx"
 import { ReportProvider } from "./context/report.tsx"
 import { RouteProvider, useRoute } from "./context/route.tsx"
 import { ThemeProvider, useTheme } from "./context/theme.tsx"
@@ -65,15 +66,17 @@ export async function tui(report: ConformanceReport): Promise<void> {
             <ExitProvider>
               <ReportProvider report={report}>
                 <RouteProvider>
-                  <DialogProviderWithOverlay>
-                    <EnterpriseKeymapProvider>
-                      <ToastProvider>
-                        <KeybindProvider>
-                          <AppShell />
-                        </KeybindProvider>
-                      </ToastProvider>
-                    </EnterpriseKeymapProvider>
-                  </DialogProviderWithOverlay>
+                  <LayoutProvider>
+                    <DialogProviderWithOverlay>
+                      <EnterpriseKeymapProvider>
+                        <ToastProvider>
+                          <KeybindProvider>
+                            <AppShell />
+                          </KeybindProvider>
+                        </ToastProvider>
+                      </EnterpriseKeymapProvider>
+                    </DialogProviderWithOverlay>
+                  </LayoutProvider>
                 </RouteProvider>
               </ReportProvider>
             </ExitProvider>
@@ -100,16 +103,27 @@ function AppShell() {
   const [ready, setReady] = createSignal(!kv.showStartup() || process.env.REASONSMITH_SKIP_STARTUP === "1")
 
   return (
-    <Show
-      when={ready()}
-      fallback={<StartupScreen onReady={() => {
-        setReady(true)
-        toast.show("Enterprise dashboard ready", "ok", 2200)
-      }} />}
-    >
-      <App />
-      <ToastViewport />
-    </Show>
+    <box flexDirection="column" width="100%" height="100%">
+      <ReportHeader />
+      <Show
+        when={ready()}
+        fallback={
+          <box flexGrow={1} minHeight={0} width="100%">
+            <StartupScreen
+              onReady={() => {
+                setReady(true)
+                toast.show("Enterprise dashboard ready", "ok", 2200)
+              }}
+            />
+          </box>
+        }
+      >
+        <App />
+      </Show>
+      <Show when={ready()}>
+        <ToastViewport />
+      </Show>
+    </box>
   )
 }
 
@@ -118,8 +132,7 @@ function App() {
   const route = useRoute()
 
   return (
-    <box flexDirection="column" width="100%" height="100%" backgroundColor={t.color.bg}>
-      <ReportHeader />
+    <box flexDirection="column" flexGrow={1} minHeight={0} width="100%" backgroundColor={t.color.bg}>
       <StatusBar />
       <box flexGrow={1} minHeight={0} width="100%" paddingLeft={1} paddingRight={1} paddingTop={1} paddingBottom={0}>
         <Switch>

@@ -12,6 +12,7 @@ import { type JSX, type ParentProps, Show, createContext, useContext } from "sol
 import { createStore } from "solid-js/store"
 import { useKeyboard } from "@opentui/solid"
 import { createSimpleContext } from "../context/helper.tsx"
+import { useLayout } from "../context/layout.tsx"
 import { useTheme } from "../context/theme.tsx"
 import { GlassBorder } from "./border.ts"
 
@@ -91,17 +92,9 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
   },
 })
 
-function panelWidth(size: DialogSize): number | "100%" {
-  switch (size) {
-    case "full":
-      return "100%"
-    case "large":
-      return 80
-    case "small":
-      return 40
-    default:
-      return 64
-  }
+function panelWidth(size: DialogSize, layout: ReturnType<typeof useLayout>): number | "100%" {
+  if (size === "full") return "100%"
+  return layout.dialogWidth(size === "large" ? "large" : size === "small" ? "small" : "medium")
 }
 
 function Overlay(props: {
@@ -111,6 +104,7 @@ function Overlay(props: {
   onBackdropClick: () => void
 }) {
   const t = useTheme()
+  const layout = useLayout()
 
   return (
     <box
@@ -125,7 +119,7 @@ function Overlay(props: {
       onMouseUp={props.onBackdropClick}
     >
       <box
-        width={panelWidth(props.size)}
+        width={panelWidth(props.size, layout)}
         flexDirection="column"
         backgroundColor={t.color.surface}
         paddingLeft={1}

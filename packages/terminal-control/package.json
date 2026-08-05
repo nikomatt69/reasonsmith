@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "1.1.0",
-    "@kitlangton/terminal-control": "0.3.1",
+    "@kitlangton/terminal-control": "0.6.0",
     "bun-pty": "0.4.4",
     "strip-ansi": "7.1.2"
   },

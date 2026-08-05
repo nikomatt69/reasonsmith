@@ -141,6 +141,7 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
         { key: "<leader>l", cmd: "route.limits" },
         { key: "<leader>p", cmd: "route.packs" },
         { key: "<leader>s", cmd: "route.systems" },
+        { key: "<leader>e", cmd: "route.settings" },
         { key: "<leader>q", cmd: "app.quit" },
       ],
       commands: [
@@ -153,6 +154,7 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
         { name: "route.limits", desc: "Go to limits", run: () => { route.navigate({ type: "limits" }); return true } },
         { name: "route.packs", desc: "Go to packs", run: () => { route.navigate({ type: "packs" }); return true } },
         { name: "route.systems", desc: "Go to systems", run: () => { route.navigate({ type: "systems" }); return true } },
+        { name: "route.settings", desc: "Go to settings", run: () => { route.navigate({ type: "settings" }); return true } },
         {
           name: "route.back",
           desc: "Go back",
@@ -195,7 +197,7 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
           return
         case "return":
         case "enter":
-          route.navigate({ type: "detail" })
+          if (report.current()) route.navigate({ type: "detail" })
           return
       }
     })

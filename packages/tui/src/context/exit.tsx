@@ -6,25 +6,21 @@
  * re-sync against the reference is a one-step diff.
  *
  * Exit-code contract:
- *   - `exit(reason)` exits 1 if `reason` is truthy, 0 otherwise.
- *   - Any error thrown by `onBeforeExit` or `onExit`, or by the renderer teardown,
- *     flips the exit code to 1 and is written to stderr.
+ *   - This module **never** calls `process.exit`. Destroying the renderer returns control to
+ *     `tui()` in `app.tsx`, which lets `index.tsx` apply the conformance exit code (`2` on
+ *     violation) after the session ends.
+ *   - `exit(reason)` sets `process.exitCode = 1` when `reason` is truthy or teardown throws.
  *   - A code of `2` is the conformance tool's signal for a *violated* requirement and
- *     intentionally belongs with the run, not with the UI. This module never sets it.
- *     The TUI can only exit 0 (clean) or 1 (something went wrong leaving the TUI).
+ *     intentionally belongs with the run, not with the UI.
  *
  * Terminal restoration:
  *   - On exit we clear the terminal title, destroy the renderer, and restore whatever
- *     raw-mode state the TUI took. The nikcli reference calls `restoreTerminalState`
- *     from a `win32` helper; this project has no equivalent module, so the call is a
- *     documented no-op. Adding a real implementation here would require a platform
- *     check (`process.platform`) and the same `process.exit` ordering as below.
+ *     raw-mode state the TUI took.
  *
  * Re-entry:
  *   - An `exiting` flag short-circuits a second call to either `exit` or `restart`.
- *     The renderer destroy path is not safe to run twice and `process.exit` does
- *     not return, so a stray second call would otherwise leak teardown errors.
  */
+
 import { useRenderer } from "@opentui/solid"
 import { createSimpleContext } from "./helper"
 
@@ -54,38 +50,35 @@ export const { use: useExit, provider: ExitProvider } = createSimpleContext({
       if (exiting) return
       exiting = true
 
-      let exitCode = reason ? 1 : 0
       const errors: unknown[] = reason ? [reason] : []
+      if (reason) process.exitCode = 1
 
       try {
         await input.onBeforeExit?.()
       } catch (error) {
         errors.push(error)
-        exitCode = 1
+        process.exitCode = 1
       }
 
       try {
         renderer.setTerminalTitle("")
         renderer.destroy()
         if (!reason) writeSummary()
-        // win32/restoreTerminalState() would go here; this project has no win32 helper.
       } catch (error) {
         errors.push(error)
-        exitCode = 1
+        process.exitCode = 1
       }
 
       try {
         await input.onExit?.()
       } catch (error) {
         errors.push(error)
-        exitCode = 1
+        process.exitCode = 1
       }
 
       for (const error of errors) {
         process.stderr.write(formatError(error) + "\n")
       }
-
-      process.exit(exitCode)
     }
 
     const restart = async () => {
@@ -101,7 +94,6 @@ export const { use: useExit, provider: ExitProvider } = createSimpleContext({
       try {
         renderer.setTerminalTitle("")
         renderer.destroy()
-        // win32/restoreTerminalState() would go here; this project has no win32 helper.
       } catch {
         // best effort
       }

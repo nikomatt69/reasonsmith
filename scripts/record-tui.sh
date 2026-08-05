@@ -9,6 +9,7 @@ RECORD="/tmp/reasonsmith-tui-check.termctrl"
 TC="bun run --cwd $ROOT/packages/terminal-control control --"
 TUI_ENV="REASONSMITH_TERMINAL=1 REASONSMITH_SKIP_STARTUP=1 REASONSMITH_CONFIG_DIR=/tmp/reasonsmith-tui-record"
 
+rm -rf /tmp/reasonsmith-tui-record
 mkdir -p "$(dirname "$OUT")"
 rm -f "$RECORD"
 
@@ -77,14 +78,12 @@ $TC wait tui-check "Systems" --timeout 5000
 $TC send tui-check down down up
 $TC mark tui-check systems
 
-echo "==> Settings route via palette"
+echo "==> Settings route via leader"
 $TC send tui-check escape
 $TC wait tui-check "Findings" --timeout 5000
-$TC send tui-check ctrl-p
-$TC wait tui-check "Command palette" --timeout 5000
-$TC send tui-check text:settings down enter
-$TC wait tui-check "Enterprise" --timeout 5000
-$TC send tui-check down down down
+$TC send tui-check --pace-ms 80 ctrl-x text:e
+$TC wait tui-check "Settings" --timeout 10000
+$TC send tui-check down down down down down down
 $TC mark tui-check settings
 
 echo "==> Six palette cycles + theme picker"
@@ -101,9 +100,9 @@ $TC wait tui-check "TruncatingCreditSystem" --timeout 5000
 $TC mark tui-check theme-picker
 
 echo "==> Command palette: audiences, themes, filter"
-$TC send tui-check ctrl-p
-$TC wait tui-check "Command palette" --timeout 5000
-$TC send tui-check text:audience down down enter
+$TC send tui-check escape
+$TC wait tui-check "Findings" --timeout 5000
+$TC send tui-check text:a text:a text:a text:a
 $TC wait tui-check "deployer" --timeout 5000
 
 $TC send tui-check ctrl-p

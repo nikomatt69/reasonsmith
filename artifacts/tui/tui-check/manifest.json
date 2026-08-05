@@ -1,55 +1,55 @@
 {
   "version": 1,
-  "createdAt": "2026-08-05T03:30:23.765Z",
+  "createdAt": "2026-08-05T03:45:39.121Z",
   "result": "passed",
   "title": "Reasonsmith enterprise TUI verification",
   "summary": "Action-driven enterprise demo: @opentui/keymap, 6 palettes, KV/toasts, all routes, command palette, modals, leader key — every frame follows a visible transition.",
   "capture": {
     "final": true
   },
-  "sourceRecordingSha256": "e7d42f5240ceba290336b271894db365a12c299588ce55bba4115ecdd3653da9",
+  "sourceRecordingSha256": "c63cd147ea62d6f17b21b6573331f8e049e17d59ea932e9e62ca74657c2a0825",
   "artifacts": [
     {
       "kind": "screen-text",
       "path": "screen.txt",
-      "bytes": 5888,
-      "sha256": "26e5dd9284c431ec47b408a728fda00347de736132f687556441065e248505bf"
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
       "kind": "screen-frame",
       "path": "screen.json",
-      "bytes": 1851352,
-      "sha256": "51f47062362000ff78418440e19888e10c9b0d244c6d089482fb10bfdb7d906b"
+      "bytes": 321,
+      "sha256": "d8a9b0acba690a657be8b03e3ea41116e58ef00032414987cbfdb98a728876a4"
     },
     {
       "kind": "screen-svg",
       "path": "screen.svg",
-      "bytes": 440345,
-      "sha256": "ee538c8b53aecd821a39c126e69fd8b000b2dd33177ea721219f380ca41a14ca"
+      "bytes": 338,
+      "sha256": "89a389526bffbf2948c1d0f708712dc7cc19b446bfc72afb33992da7691ad1d1"
     },
     {
       "kind": "screen-png",
       "path": "screen.png",
-      "bytes": 118163,
-      "sha256": "62f040dbe741ec83c156446c417c98587c44e23ffcf1da82a074aefdfbda6dbb"
+      "bytes": 15185,
+      "sha256": "c4a57b7df79390740feab5b9130175bdd78148fb945a969a196a4887805e9d91"
     },
     {
       "kind": "video",
       "path": "demo.mp4",
-      "bytes": 829675,
-      "sha256": "e091c8303fb8d744dd8f52036dc65a4eea32593dd943077885af8d251155db20"
+      "bytes": 893052,
+      "sha256": "0a725ce6aba364dc91f266ec39aa4b55b0a809a964b63c5fd3630723bfa2d2c6"
     },
     {
       "kind": "preview",
       "path": "preview.gif",
-      "bytes": 2550848,
-      "sha256": "390ffb312b57593b0b162533cec48a7c5324eb4cc6b1aaf71d5dbd69d57718f8"
+      "bytes": 2250329,
+      "sha256": "c008801328d3955161dfa4f31a58788519d2492a58adc17c82cfebe2cbdb3ca3"
     },
     {
       "kind": "recording",
       "path": "recording.termctrl",
-      "bytes": 1430844,
-      "sha256": "e7d42f5240ceba290336b271894db365a12c299588ce55bba4115ecdd3653da9"
+      "bytes": 1368654,
+      "sha256": "c63cd147ea62d6f17b21b6573331f8e049e17d59ea932e9e62ca74657c2a0825"
     },
     {
       "kind": "pr-markdown",

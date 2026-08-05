@@ -1,20 +1,11 @@
 /**
  * The top bar — the masthead, in nikcli's tab-bar shape.
  *
- * Two rows in a single dark band:
- *   1. The brand mark + a row of tabs (Findings, Packs, Systems, Limits, Settings) — each tab is a
- *      `div` with `onMouseOver`/`onMouseUp` so the reader can browse the surface with the mouse.
- *   2. The breadcrumb: the system name + pack id + the active audience + a hairline.
- *
- * The masthead is the one surface every route shares. It never reacts to nothing — even the loading
- * screen shows the masthead, so a reader who landed here knows they are in the right tool.
- *
- * The tabs are the same component ("tab") with three states (default / hover / active). The same
- * component is reused across the row, the same way nikcli's `TabBar` uses one element and switches
- * its background/foreground by state.
+ * Responsive: ASCII brand hides on narrow terminals; notice wraps to terminal width.
  */
 
 import { For, Show, createSignal } from "solid-js"
+import { useLayout } from "../context/layout.tsx"
 import { useReport } from "../context/report.tsx"
 import { useRoute } from "../context/route.tsx"
 import { useKeybind } from "../context/keybind.tsx"
@@ -33,11 +24,17 @@ const TABS = [
 
 export function ReportHeader() {
   const t = useTheme()
+  const layout = useLayout()
   const route = useRoute()
   const report = useReport()
   const keybind = useKeybind()
   const notice = () => report.report.undeclaredDomainNotice
   const [hovered, setHovered] = createSignal<string | null>(null)
+
+  const visibleTabs = () =>
+    layout.compact()
+      ? TABS.filter((tab) => tab.type === "findings" || tab.type === "settings" || route.route().type === tab.type)
+      : TABS
 
   return (
     <box
@@ -50,67 +47,63 @@ export function ReportHeader() {
       paddingLeft={1}
       paddingRight={1}
     >
-      <box flexDirection="row" height={3} width="100%">
-        {/*
-          `tiny` is the smallest ASCII art font OpenTUI ships. The user asked for "1Row" or "small";
-          neither exists, so we use the smallest available. The masthead sits in a 3-row row so the
-          font's vertical extent fits without clipping.
-        */}
-        <ascii_font text="REASONSMITH" font="tiny" color={t.color.info} />
-        <text fg={t.color.borderSubtle} wrapMode="none">
-          {"  "}
-          {SEPARATOR.vertical}
-          {"  "}
-        </text>
-        <For each={TABS}>
-          {(tab) => (
-            <Tab
-              label={tab.label}
-              active={route.route().type === tab.type}
-              hovered={hovered() === tab.type}
-              onHover={() => setHovered(tab.type)}
-              onLeave={() => setHovered((cur) => (cur === tab.type ? null : cur))}
-              onClick={() => route.navigate({ type: tab.type })}
-            />
-          )}
-        </For>
-        <box flexGrow={1} />
-        <Tab
-          label="+ settings"
-          active={false}
-          hovered={hovered() === "settings"}
-          onHover={() => setHovered("settings")}
-          onLeave={() => setHovered((cur) => (cur === "settings" ? null : cur))}
-          onClick={() => route.navigate({ type: "settings" })}
-          accent
-        />
+      <box flexDirection="row" height={3} width="100%" minWidth={0}>
+        <Show when={layout.showAsciiBrand()}>
+          <ascii_font text="REASONSMITH" font="tiny" color={t.color.info} />
+          <text fg={t.color.borderSubtle} wrapMode="none">
+            {"  "}
+            {SEPARATOR.vertical}
+            {"  "}
+          </text>
+        </Show>
+        <Show when={!layout.showAsciiBrand()}>
+          <text fg={t.color.info} attributes={t.attr.bold} wrapMode="none" content="RS" />
+          <text fg={t.color.borderSubtle} wrapMode="none" content=" │ " />
+        </Show>
+        <box flexDirection="row" flexGrow={1} minWidth={0} flexShrink={1}>
+          <For each={visibleTabs()}>
+            {(tab) => (
+              <Tab
+                label={tab.label}
+                active={route.route().type === tab.type}
+                hovered={hovered() === tab.type}
+                onHover={() => setHovered(tab.type)}
+                onLeave={() => setHovered((cur) => (cur === tab.type ? null : cur))}
+                onClick={() => route.navigate({ type: tab.type })}
+              />
+            )}
+          </For>
+        </box>
+        <Show when={layout.showHeaderMeta()}>
+          <Clickable cursor="pointer" onClick={() => keybind.openCommandPalette()}>
+            <text fg={t.color.textMuted} wrapMode="none" content="ctrl+p" />
+          </Clickable>
+        </Show>
       </box>
 
-      <box flexDirection="row" height={1} width="100%">
-        <text fg={t.color.textSecondary} wrapMode="none">
+      <box flexDirection="row" height={1} width="100%" minWidth={0}>
+        <text fg={t.color.textSecondary} wrapMode="none" flexShrink={1} minWidth={0}>
           {report.report.system_name}
         </text>
-        <text fg={t.color.borderSubtle} wrapMode="none">
-          {"  "}
-          {SEPARATOR.dot}
-          {"  "}
-        </text>
-        <text fg={t.color.textMuted} wrapMode="none" attributes={t.attr.dim}>
-          pack {report.report.pack_id}
-        </text>
-        <text fg={t.color.borderSubtle} wrapMode="none">
-          {"  "}
-          {SEPARATOR.dot}
-          {"  "}
-        </text>
-        <text fg={t.color.textMuted} wrapMode="none" attributes={t.attr.dim}>
-          {report.report.results.length} requirements
-        </text>
-        <box flexGrow={1} />
-        <Clickable cursor="pointer" onClick={() => keybind.openCommandPalette()}>
-          <text fg={t.color.textMuted} wrapMode="none" content="ctrl+p" />
-        </Clickable>
-        <text fg={t.color.borderSubtle} wrapMode="none" content=" · " />
+        <Show when={layout.showHeaderMeta()}>
+          <text fg={t.color.borderSubtle} wrapMode="none">
+            {"  "}
+            {SEPARATOR.dot}
+            {"  "}
+          </text>
+          <text fg={t.color.textMuted} wrapMode="none" attributes={t.attr.dim}>
+            pack {report.report.pack_id}
+          </text>
+          <text fg={t.color.borderSubtle} wrapMode="none">
+            {"  "}
+            {SEPARATOR.dot}
+            {"  "}
+          </text>
+          <text fg={t.color.textMuted} wrapMode="none" attributes={t.attr.dim}>
+            {report.report.results.length} req
+          </text>
+        </Show>
+        <box flexGrow={1} minWidth={0} />
         <Clickable cursor="pointer" onClick={() => report.cycleAudience()}>
           <text fg={t.color.info} wrapMode="none">
             for: <b>{report.audience()}</b>
@@ -118,9 +111,9 @@ export function ReportHeader() {
         </Clickable>
       </box>
 
-      <Show when={report.view().headline}>
-        <box flexDirection="row" height={1}>
-          <text fg={t.color.textSecondary} wrapMode="none">
+      <Show when={report.view().headline && layout.showHeaderMeta()}>
+        <box flexDirection="row" height={1} minWidth={0}>
+          <text fg={t.color.textSecondary} wrapMode="none" flexShrink={1} minWidth={0}>
             {report.report.headline}
           </text>
         </box>
@@ -129,7 +122,7 @@ export function ReportHeader() {
       <Show when={notice()}>
         {(text) => (
           <box flexDirection="column" marginTop={0} marginBottom={1}>
-            <For each={wrap(text(), 96)}>
+            <For each={wrap(text(), layout.wrapWidth())}>
               {(line) => <text fg={t.color.warn} wrapMode="none" content={line} />}
             </For>
           </box>
